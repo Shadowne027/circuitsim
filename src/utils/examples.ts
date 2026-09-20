@@ -1,4 +1,4 @@
-import { CircuitData, CircuitComponent, Wire, Point } from '../types';
+import { CircuitData, CircuitComponent, Wire, Point, ComponentType } from '../types';
 
 function generateId(): string {
   return Math.random().toString(36).substr(2, 9);
@@ -187,7 +187,7 @@ export function getSwitchExample(): CircuitData {
   // Lamp at (150, 370), vertical: t1=(150,340), t2=(150,400)
   // GND at (150, 470): t1=(150,450)
   const v1 = makeComponent('voltage_source', { x: 150, y: 150 }, 12, 'V', 'V1');
-  const s1 = makeComponent('switch', { x: 150, y: 260 }, 0, '', 'S1', 0, { closed: false });
+  const s1 = makeComponent('switch_spst', { x: 150, y: 260 }, 0, '', 'S1', 0, { closed: false });
   const lamp = makeComponent('lamp', { x: 150, y: 370 }, 100, 'Ω', 'L1', 90);
   const g1 = makeComponent('ground', { x: 150, y: 470 }, 0, 'V', 'GND');
 

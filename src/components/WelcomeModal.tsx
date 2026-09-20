@@ -1,6 +1,6 @@
 import React from 'react';
 import { CircuitData } from '../types';
-import { getOhmLawExample, getSeriesCircuitExample, getParallelCircuitExample, getLEDExample, getSwitchExample } from '../utils/examples';
+import { getOhmLawExample, getSeriesCircuitExample, getLEDExample, getSwitchExample } from '../utils/examples';
 
 interface Props {
   onClose: () => void;
@@ -12,7 +12,6 @@ export default function WelcomeModal({ onClose, onLoadExample, onLoadFile }: Pro
   const examples = [
     { name: 'Ley de Ohm', desc: 'V=IR básico', data: getOhmLawExample(), icon: '⚡' },
     { name: 'Circuito Serie', desc: 'Resistencias en serie', data: getSeriesCircuitExample(), icon: '🔗' },
-    { name: 'Circuito Paralelo', desc: 'Resistencias en paralelo', data: getParallelCircuitExample(), icon: '🔀' },
     { name: 'LED + Resistencia', desc: 'LED con limitador', data: getLEDExample(), icon: '💡' },
     { name: 'Switch + Lámpara', desc: 'Control con interruptor', data: getSwitchExample(), icon: '🔌' },
   ];

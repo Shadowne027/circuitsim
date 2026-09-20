@@ -12,28 +12,88 @@ function generateId(): string {
 }
 
 function getTerminals(type: string, position: Point, rotation: number): { id: string; position: Point }[] {
-  let t1: Point, t2: Point;
-  
-  switch (type) {
-    case 'ground':
-      t1 = { x: position.x, y: position.y - 20 };
-      return [{ id: 't1', position: t1 }];
-    default:
-      // Default: horizontal component with terminals at ±30
-      const rad = (rotation * Math.PI) / 180;
-      t1 = {
-        x: position.x + Math.round(-30 * Math.cos(rad)),
-        y: position.y + Math.round(-30 * Math.sin(rad)),
-      };
-      t2 = {
-        x: position.x + Math.round(30 * Math.cos(rad)),
-        y: position.y + Math.round(30 * Math.sin(rad)),
-      };
-      return [
-        { id: 't1', position: t1 },
-        { id: 't2', position: t2 },
-      ];
-  }
+  const rad = (rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  // Define terminal offsets for each component type (in local coords before rotation)
+  const terminalDefs: Record<string, Point[]> = {
+    ground: [{ x: 0, y: -20 }],
+    voltage_label: [{ x: 0, y: 0 }],
+    opamp: [
+      { x: -30, y: -15 }, // in+
+      { x: -30, y: 15 },  // in-
+      { x: 30, y: 0 },    // out
+    ],
+    npn: [
+      { x: -30, y: 0 },  // base
+      { x: 20, y: -20 }, // collector
+      { x: 20, y: 20 },  // emitter
+    ],
+    pnp: [
+      { x: -30, y: 0 },  // base
+      { x: 20, y: -20 }, // collector
+      { x: 20, y: 20 },  // emitter
+    ],
+    nmos: [
+      { x: -30, y: 0 },  // gate
+      { x: 20, y: -20 }, // drain
+      { x: 20, y: 20 },  // source
+    ],
+    pmos: [
+      { x: -30, y: 0 },  // gate
+      { x: 20, y: -20 }, // drain
+      { x: 20, y: 20 },  // source
+    ],
+    transformer: [
+      { x: -25, y: -20 }, // primary top
+      { x: -25, y: 20 },  // primary bottom
+      { x: 25, y: -20 },  // secondary top
+      { x: 25, y: 20 },   // secondary bottom
+    ],
+    switch_spdt: [
+      { x: -30, y: 0 },  // common
+      { x: 30, y: -15 }, // throw 1
+      { x: 30, y: 15 },  // throw 2
+    ],
+    vcvs: [
+      { x: -30, y: -15 }, // control+
+      { x: -30, y: 15 },  // control-
+      { x: 30, y: -15 },  // output+
+      { x: 30, y: 15 },   // output-
+    ],
+    vccs: [
+      { x: -30, y: -15 },
+      { x: -30, y: 15 },
+      { x: 30, y: -15 },
+      { x: 30, y: 15 },
+    ],
+    ccvs: [
+      { x: -30, y: -15 },
+      { x: -30, y: 15 },
+      { x: 30, y: -15 },
+      { x: 30, y: 15 },
+    ],
+    cccs: [
+      { x: -30, y: -15 },
+      { x: -30, y: 15 },
+      { x: 30, y: -15 },
+      { x: 30, y: 15 },
+    ],
+  };
+
+  const offsets = terminalDefs[type] || [
+    { x: -30, y: 0 },
+    { x: 30, y: 0 },
+  ];
+
+  return offsets.map((off, i) => ({
+    id: `t${i + 1}`,
+    position: {
+      x: position.x + Math.round(off.x * cos - off.y * sin),
+      y: position.y + Math.round(off.x * sin + off.y * cos),
+    },
+  }));
 }
 
 export default function App() {
@@ -64,7 +124,7 @@ export default function App() {
   };
 
   const saveHistory = useCallback(() => {
-    setHistory(prev => [...prev.slice(-20), circuitData]);
+    setHistory(prev => [...prev.slice(-20), JSON.parse(JSON.stringify(circuitData))]);
   }, [circuitData]);
 
   const undo = useCallback(() => {
@@ -76,25 +136,25 @@ export default function App() {
     }
   }, [history]);
 
-  // Create component at position
   const createComponent = useCallback((type: Tool, position: Point) => {
     if (type === 'select' || type === 'wire') return;
     
     saveHistory();
-    const defaults = COMPONENT_DEFAULTS[type];
+    const defaults = COMPONENT_DEFAULTS[type as keyof typeof COMPONENT_DEFAULTS];
     const id = generateId();
     const terminals = getTerminals(type, position, 0);
     
     const component: CircuitComponent = {
       id,
-      type,
+      type: type as CircuitComponent['type'],
       position,
       rotation: 0,
       value: defaults.value,
       unit: defaults.unit,
       label: defaults.label,
       terminals,
-      properties: type === 'switch' ? { closed: false } : {},
+      properties: (type === 'switch_spst' || type === 'push_button') ? { closed: false } : 
+                  type === 'switch_spdt' ? { closed: false, position: 0 } : {},
     };
 
     setCircuitData(prev => ({
@@ -102,13 +162,11 @@ export default function App() {
       components: [...prev.components, component],
     }));
     setSelectedId(id);
-    showStatus(`+ ${type.replace('_', ' ')} agregado`);
+    showStatus(`+ ${type.replace(/_/g, ' ')} agregado`);
   }, [saveHistory]);
 
-  // Handle mouse events
   const handleMouseDown = useCallback((e: React.MouseEvent, point: Point) => {
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
-      // Middle click or Alt+click = pan
       setIsPanning(true);
       setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
       return;
@@ -119,18 +177,16 @@ export default function App() {
         setIsDrawing(true);
         setCurrentWirePoints([point]);
       } else {
-        // Add point to wire
         const lastPoint = currentWirePoints[currentWirePoints.length - 1];
         if (point.x !== lastPoint.x || point.y !== lastPoint.y) {
           setCurrentWirePoints([...currentWirePoints, point]);
         }
       }
     } else if (activeTool === 'select') {
-      // Check if clicking on a component to drag it
-      const clickedComp = circuitData.components.find(comp => {
+      const clickedComp = circuitData.components.find((comp: CircuitComponent) => {
         const dx = Math.abs(comp.position.x - point.x);
         const dy = Math.abs(comp.position.y - point.y);
-        return dx < 35 && dy < 20;
+        return dx < 40 && dy < 30;
       });
       
       if (clickedComp) {
@@ -145,7 +201,6 @@ export default function App() {
         setSelectedId(null);
       }
     } else {
-      // Place component
       createComponent(activeTool, point);
     }
   }, [activeTool, isDrawing, currentWirePoints, createComponent, panOffset, circuitData.components, saveHistory]);
@@ -163,7 +218,7 @@ export default function App() {
       };
       setCircuitData(prev => ({
         ...prev,
-        components: prev.components.map(c => {
+        components: prev.components.map((c: CircuitComponent) => {
           if (c.id !== selectedId) return c;
           return {
             ...c,
@@ -177,7 +232,7 @@ export default function App() {
     }
   }, [isPanning, dragStart, isDraggingComponent, selectedId, dragComponentOffset]);
 
-  const handleMouseUp = useCallback((e: React.MouseEvent, point: Point) => {
+  const handleMouseUp = useCallback((_e: React.MouseEvent, _point: Point) => {
     if (isPanning) {
       setIsPanning(false);
       setDragStart(null);
@@ -205,33 +260,30 @@ export default function App() {
     setCurrentWirePoints([]);
   }, [currentWirePoints, saveHistory]);
 
-  // Double click to finish wire
   const handleDoubleClick = useCallback(() => {
     if (isDrawing) {
       finishWire();
     }
   }, [isDrawing, finishWire]);
 
-  // Component operations
   const handleComponentClick = useCallback((id: string) => {
     setSelectedId(id);
     if (activeTool !== 'select') {
       setActiveTool('select');
     }
-    // Toggle switch on click
-    const comp = circuitData.components.find(c => c.id === id);
-    if (comp && comp.type === 'switch') {
+    const comp = circuitData.components.find((c: CircuitComponent) => c.id === id);
+    if (comp && (comp.type === 'switch_spst' || comp.type === 'push_button')) {
       saveHistory();
       setCircuitData(prev => ({
         ...prev,
-        components: prev.components.map(c => {
+        components: prev.components.map((c: CircuitComponent) => {
           if (c.id !== id) return c;
           return { ...c, properties: { ...c.properties, closed: !c.properties.closed } };
         }),
       }));
       setSimulationData(null);
       setSimulationResults(new Map());
-      showStatus(comp.properties.closed ? '🔴 Switch abierto' : '🟢 Switch cerrado');
+      showStatus(comp.properties.closed ? '🔴 Abierto' : '🟢 Cerrado');
     }
   }, [activeTool, circuitData.components, saveHistory]);
 
@@ -243,10 +295,9 @@ export default function App() {
     saveHistory();
     setCircuitData(prev => ({
       ...prev,
-      components: prev.components.map(c => {
+      components: prev.components.map((c: CircuitComponent) => {
         if (c.id !== id) return c;
         const updated = { ...c, ...updates };
-        // Recalculate terminals if rotation changed
         if (updates.rotation !== undefined) {
           updated.terminals = getTerminals(c.type, c.position, updates.rotation);
         }
@@ -264,8 +315,8 @@ export default function App() {
     saveHistory();
     setCircuitData(prev => ({
       ...prev,
-      components: prev.components.filter(c => c.id !== id),
-      wires: prev.wires.filter(w => w.id !== id),
+      components: prev.components.filter((c: CircuitComponent) => c.id !== id),
+      wires: prev.wires.filter((w: Wire) => w.id !== id),
     }));
     setSelectedId(null);
     setSimulationData(null);
@@ -277,7 +328,7 @@ export default function App() {
     saveHistory();
     setCircuitData(prev => ({
       ...prev,
-      components: prev.components.map(c => {
+      components: prev.components.map((c: CircuitComponent) => {
         if (c.id !== id) return c;
         const newRotation = (c.rotation + 90) % 360;
         return {
@@ -291,7 +342,6 @@ export default function App() {
     setSimulationResults(new Map());
   }, [saveHistory]);
 
-  // Simulation
   const handleSimulate = useCallback(() => {
     setIsSimulating(true);
     setTimeout(() => {
@@ -304,7 +354,7 @@ export default function App() {
           resultsMap.set(bc.componentId, { current: bc.current, voltage: bc.voltage });
         });
         setSimulationResults(resultsMap);
-        showStatus(`✅ Simulación exitosa | ${result.branchCurrents.length} ramas analizadas`);
+        showStatus(`✅ Simulación exitosa | ${result.branchCurrents.length} ramas`);
       } else {
         showStatus(`⚠️ ${result.error || 'Error en simulación'}`);
         setSimulationResults(new Map());
@@ -313,7 +363,6 @@ export default function App() {
     }, 100);
   }, [circuitData]);
 
-  // File operations
   const handleSave = useCallback(() => {
     const dataToSave = { ...circuitData, name: circuitName };
     downloadCircuit(dataToSave);
@@ -339,7 +388,7 @@ export default function App() {
 
   const handleNew = useCallback(() => {
     if (circuitData.components.length > 0 || circuitData.wires.length > 0) {
-      if (!confirm('¿Crear nuevo circuito? Se perderán los cambios no guardados.')) return;
+      if (!confirm('¿Crear nuevo circuito?')) return;
     }
     saveHistory();
     setCircuitData(createEmptyCircuit());
@@ -353,27 +402,24 @@ export default function App() {
   const handleExportImage = useCallback(() => {
     const svgEl = svgRef.current?.querySelector('svg');
     if (!svgEl) return;
-    
     const svgData = new XMLSerializer().serializeToString(svgEl);
     const canvas = document.createElement('canvas');
     canvas.width = 1200;
     canvas.height = 800;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    
     const img = new Image();
     img.onload = () => {
       ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
-      
       const link = document.createElement('a');
       link.download = `${circuitName}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
       showStatus('🖼️ Imagen exportada');
     };
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    img.src = 'image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   }, [circuitName]);
 
   const handleClear = useCallback(() => {
@@ -393,26 +439,19 @@ export default function App() {
     setSimulationData(null);
     setSimulationResults(new Map());
     setSelectedId(null);
-    showStatus(`📚 Ejemplo "${data.name}" cargado`);
+    showStatus(`📚 "${data.name}" cargado`);
   }, [saveHistory]);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return;
-      
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedId) {
-          handleDeleteComponent(selectedId);
-        }
+        if (selectedId) handleDeleteComponent(selectedId);
       } else if (e.key === 'r' || e.key === 'R') {
-        if (selectedId) {
-          handleRotateComponent(selectedId);
-        }
+        if (selectedId) handleRotateComponent(selectedId);
       } else if (e.key === 'Escape') {
-        if (isDrawing) {
-          finishWire();
-        }
+        if (isDrawing) finishWire();
         setSelectedId(null);
         setActiveTool('select');
       } else if (e.key === 'Enter' && isDrawing) {
@@ -429,12 +468,11 @@ export default function App() {
         setActiveTool('select');
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedId, isDrawing, handleDeleteComponent, handleRotateComponent, finishWire, undo, handleSave]);
 
-  // Zoom with scroll
+  // Zoom
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
@@ -450,12 +488,11 @@ export default function App() {
     }
   }, []);
 
-  const selectedComponent = circuitData.components.find(c => c.id === selectedId) || null;
-  const selectedWire = circuitData.wires.find(w => w.id === selectedId) || null;
+  const selectedComponent = circuitData.components.find((c: CircuitComponent) => c.id === selectedId) || null;
+  const selectedWire = circuitData.wires.find((w: Wire) => w.id === selectedId) || null;
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-gray-100">
-      {/* Welcome Modal */}
       {showWelcome && (
         <WelcomeModal 
           onClose={() => setShowWelcome(false)} 
@@ -487,25 +524,17 @@ export default function App() {
           <span>Cables: {circuitData.wires.length}</span>
         </div>
         <div className="h-5 w-px bg-gray-600" />
-        <button 
-          onClick={() => setZoom(1)} 
-          className="text-xs px-2 py-0.5 bg-gray-700 rounded hover:bg-gray-600"
-        >
+        <button onClick={() => setZoom(1)} className="text-xs px-2 py-0.5 bg-gray-700 rounded hover:bg-gray-600">
           Reset Zoom
         </button>
-        <button 
-          onClick={() => setShowWelcome(true)} 
-          className="text-xs px-2 py-0.5 bg-indigo-600 rounded hover:bg-indigo-500"
-          title="Ayuda y ejemplos"
-        >
+        <button onClick={() => setShowWelcome(true)} className="text-xs px-2 py-0.5 bg-indigo-600 rounded hover:bg-indigo-500" title="Ayuda">
           ❓ Ayuda
         </button>
       </header>
 
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Toolbar */}
-        <div className="w-44 shrink-0 overflow-y-auto">
+        <div className="w-48 shrink-0 overflow-y-auto">
           <Toolbar
             activeTool={activeTool}
             onToolSelect={setActiveTool}
@@ -521,14 +550,8 @@ export default function App() {
           />
         </div>
 
-        {/* Canvas */}
         <div className="flex-1 relative" ref={svgRef} onDoubleClick={handleDoubleClick}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            if (isDrawing) {
-              finishWire();
-            }
-          }}>
+          onContextMenu={(e) => { e.preventDefault(); if (isDrawing) finishWire(); }}>
           <CircuitCanvas
             components={circuitData.components}
             wires={circuitData.wires}
@@ -544,36 +567,25 @@ export default function App() {
             zoom={zoom}
             currentWirePoints={currentWirePoints}
             isDrawing={isDrawing}
-            isDraggingComponent={isDraggingComponent}
           />
           
-          {/* Drawing wire indicator */}
           {isDrawing && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-3 py-1.5 rounded-full shadow-lg">
-              🔌 Dibujando cable - Click para agregar puntos, Enter/Doble-click para terminar, Esc para cancelar
+              🔌 Click para puntos · Enter/Doble-click terminar · Esc cancelar
             </div>
           )}
 
-          {/* Tool indicator */}
           <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur text-xs px-3 py-1.5 rounded-lg shadow border border-gray-200">
-            Herramienta: <span className="font-semibold text-blue-600 capitalize">{activeTool === 'select' ? 'Seleccionar' : activeTool === 'wire' ? 'Cable' : activeTool.replace('_', ' ')}</span>
-            {activeTool !== 'select' && activeTool !== 'wire' && (
-              <span className="text-gray-400 ml-2">• Click para colocar</span>
-            )}
-            {activeTool === 'wire' && !isDrawing && (
-              <span className="text-gray-400 ml-2">• Click para iniciar cable</span>
-            )}
+            Herramienta: <span className="font-semibold text-blue-600 capitalize">{activeTool === 'select' ? 'Seleccionar' : activeTool === 'wire' ? 'Cable' : activeTool.replace(/_/g, ' ')}</span>
           </div>
 
-          {/* Status message */}
           {statusMessage && (
-            <div className="absolute bottom-3 right-3 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg animate-pulse">
+            <div className="absolute bottom-3 right-3 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg">
               {statusMessage}
             </div>
           )}
         </div>
 
-        {/* Right Panel */}
         <div className="w-56 shrink-0 bg-white border-l border-gray-200 overflow-y-auto">
           <PropertiesPanel
             selectedComponent={selectedComponent}
@@ -584,7 +596,6 @@ export default function App() {
             simulationData={simulationData}
           />
           
-          {/* Simulation Results Summary */}
           {simulationData?.success && (
             <div className="border-t border-gray-200 p-3">
               <div className="text-xs font-semibold text-gray-500 mb-2">📊 RESUMEN</div>
@@ -599,9 +610,7 @@ export default function App() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Potencia total:</span>
-                  <span className="font-mono text-orange-600">
-                    {simulationData.totalPower.toFixed(4)} W
-                  </span>
+                  <span className="font-mono text-orange-600">{simulationData.totalPower.toFixed(4)} W</span>
                 </div>
               </div>
             </div>
@@ -609,21 +618,16 @@ export default function App() {
 
           {simulationData && !simulationData.success && (
             <div className="border-t border-gray-200 p-3">
-              <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-                ⚠️ {simulationData.error}
-              </div>
+              <div className="text-xs text-red-600 bg-red-50 p-2 rounded">⚠️ {simulationData.error}</div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Bottom Status Bar */}
       <footer className="h-6 bg-gray-800 text-gray-400 text-xs flex items-center px-3 gap-4 shrink-0">
-        <span>CircuitSim v1.0</span>
+        <span>CircuitSim v2.0</span>
         <span>|</span>
-        <span>Grid: {GRID_SIZE}px</span>
-        <span>|</span>
-        <span>Ctrl+Scroll = Zoom | Alt+Click = Pan | R = Rotar | Del = Eliminar | W = Cable | V = Seleccionar</span>
+        <span>Ctrl+Scroll=Zoom | Alt+Click=Pan | R=Rotar | Del=Eliminar | W=Cable</span>
         <div className="flex-1" />
         <span>Formato: .circuit (JSON)</span>
       </footer>

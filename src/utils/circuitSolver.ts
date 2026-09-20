@@ -1,6 +1,6 @@
-import { CircuitData, SimulationData, BranchCurrent, SimulationResult } from '../types';
+import { CircuitData, SimulationData, BranchCurrent, SimulationResult, CircuitComponent } from '../types';
 
-const TOLERANCE = 5; // pixels tolerance for connection detection
+const TOLERANCE = 5;
 
 function pointsMatch(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
   return Math.abs(a.x - b.x) < TOLERANCE && Math.abs(a.y - b.y) < TOLERANCE;
@@ -9,83 +9,56 @@ function pointsMatch(a: { x: number; y: number }, b: { x: number; y: number }): 
 export function simulateCircuit(data: CircuitData): SimulationData {
   try {
     if (data.components.length === 0) {
-      return { nodeVoltages: [], branchCurrents: [], totalPower: 0, success: false, error: 'No hay componentes en el circuito' };
+      return { nodeVoltages: [], branchCurrents: [], totalPower: 0, success: false, error: 'No hay componentes' };
     }
 
     // Collect all connection points
-    interface ConnectionPoint {
-      x: number;
-      y: number;
-      componentId?: string;
-      terminalIndex?: number;
-      wireId?: string;
-      pointIndex?: number;
-      isGround?: boolean;
-    }
+    interface ConnPoint { x: number; y: number; compId?: string; termIdx?: number; wireId?: string; isGround?: boolean; }
+    const allPoints: ConnPoint[] = [];
 
-    const allPoints: ConnectionPoint[] = [];
-
-    // Add component terminals
-    data.components.forEach(comp => {
-      comp.terminals.forEach((term, ti) => {
+    data.components.forEach((comp: CircuitComponent) => {
+      comp.terminals.forEach((term, ti: number) => {
         allPoints.push({
-          x: term.position.x,
-          y: term.position.y,
-          componentId: comp.id,
-          terminalIndex: ti,
+          x: term.position.x, y: term.position.y,
+          compId: comp.id, termIdx: ti,
           isGround: comp.type === 'ground' && ti === 0,
         });
       });
     });
 
-    // Add wire points
-    data.wires.forEach(wire => {
-      wire.points.forEach((pt, pi) => {
-        allPoints.push({
-          x: pt.x,
-          y: pt.y,
-          wireId: wire.id,
-          pointIndex: pi,
-        });
+    data.wires.forEach((wire) => {
+      wire.points.forEach((pt) => {
+        allPoints.push({ x: pt.x, y: pt.y, wireId: wire.id });
       });
     });
 
-    // Union-Find to group connected points into nodes
+    // Union-Find
     const parent = new Map<number, number>();
-    
     function find(x: number): number {
       if (!parent.has(x)) parent.set(x, x);
       if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!));
       return parent.get(x)!;
     }
-    
     function union(a: number, b: number) {
-      const ra = find(a);
-      const rb = find(b);
+      const ra = find(a); const rb = find(b);
       if (ra !== rb) parent.set(ra, rb);
     }
 
-    // Connect points that are at the same location
+    // Connect nearby points
     for (let i = 0; i < allPoints.length; i++) {
       for (let j = i + 1; j < allPoints.length; j++) {
-        if (pointsMatch(allPoints[i], allPoints[j])) {
-          union(i, j);
-        }
+        if (pointsMatch(allPoints[i], allPoints[j])) union(i, j);
       }
     }
 
-    // Also connect wire endpoints to each other (wire is a continuous conductor)
-    data.wires.forEach(wire => {
-      const wireIndices: number[] = [];
-      allPoints.forEach((pt, idx) => {
-        if (pt.wireId === wire.id) wireIndices.push(idx);
-      });
-      for (let i = 0; i < wireIndices.length - 1; i++) {
-        union(wireIndices[i], wireIndices[i + 1]);
-      }
+    // Connect wire segments
+    data.wires.forEach((wire) => {
+      const indices: number[] = [];
+      allPoints.forEach((pt, idx) => { if (pt.wireId === wire.id) indices.push(idx); });
+      for (let i = 0; i < indices.length - 1; i++) union(indices[i], indices[i + 1]);
     });
 
-    // Build node map: root -> set of point indices
+    // Build node groups
     const nodeGroups = new Map<number, Set<number>>();
     allPoints.forEach((_, idx) => {
       const root = find(idx);
@@ -94,242 +67,291 @@ export function simulateCircuit(data: CircuitData): SimulationData {
     });
 
     // Assign node IDs
-    const nodeIds: number[] = [];
     const pointToNode = new Map<number, number>();
     let groundNodeIdx = -1;
     let nodeCounter = 0;
 
-    nodeGroups.forEach((pointIndices, root) => {
+    nodeGroups.forEach((pointIndices) => {
       const nodeId = nodeCounter++;
-      nodeIds.push(nodeId);
       pointIndices.forEach(pi => pointToNode.set(pi, nodeId));
-      
-      // Check if this node contains a ground
       for (const pi of pointIndices) {
-        if (allPoints[pi].isGround) {
-          groundNodeIdx = nodeId;
-          break;
-        }
+        if (allPoints[pi].isGround) { groundNodeIdx = nodeId; break; }
       }
     });
 
-    if (nodeIds.length === 0) {
-      return { nodeVoltages: [], branchCurrents: [], totalPower: 0, success: false, error: 'No hay nodos en el circuito' };
+    if (nodeCounter === 0) {
+      return { nodeVoltages: [], branchCurrents: [], totalPower: 0, success: false, error: 'No hay nodos' };
     }
-
-    // If no ground found, use first node
     if (groundNodeIdx === -1) groundNodeIdx = 0;
-
-    const n = nodeIds.length;
+    const n = nodeCounter;
 
     // Count voltage sources for MNA
-    const voltageSources = data.components.filter(c => c.type === 'voltage_source' || c.type === 'led');
-    const m = voltageSources.length;
+    const vsComponents = data.components.filter((c: CircuitComponent) => 
+      ['voltage_source', 'battery', 'led', 'diode', 'zener_diode', 'schottky_diode', 'photodiode', 'ac_voltage', 'ammeter'].includes(c.type)
+    );
+    const m = vsComponents.length;
     const size = n + m;
 
-    // Build MNA matrices: [G B; C D] [V; I] = [I; E]
     const G: number[][] = Array.from({ length: size }, () => Array(size).fill(0));
     const rhs: number[] = Array(size).fill(0);
-
-    // Map component to its MNA row (for voltage sources)
     const vsRowMap = new Map<string, number>();
     let vsCounter = 0;
 
-    // Process each component
-    data.components.forEach(comp => {
-      if (comp.terminals.length < 1) return;
-
-      // Get node indices for terminals
-      const terminalNodes: number[] = [];
-      comp.terminals.forEach((term, ti) => {
-        const termPointIdx = allPoints.findIndex(p => 
-          p.componentId === comp.id && p.terminalIndex === ti
-        );
-        if (termPointIdx >= 0 && pointToNode.has(termPointIdx)) {
-          terminalNodes.push(pointToNode.get(termPointIdx)!);
-        }
+    // Helper to get node indices for a component's terminals
+    function getNodes(comp: CircuitComponent): number[] {
+      const nodes: number[] = [];
+      comp.terminals.forEach((term, ti: number) => {
+        const idx = allPoints.findIndex(p => p.compId === comp.id && p.termIdx === ti);
+        if (idx >= 0 && pointToNode.has(idx)) nodes.push(pointToNode.get(idx)!);
       });
+      return nodes;
+    }
 
-      if (terminalNodes.length === 0) return;
+    // Add conductance between two nodes
+    function addConductance(n1: number, n2: number, g: number) {
+      if (n1 !== groundNodeIdx && n2 !== groundNodeIdx) {
+        G[n1][n1] += g; G[n2][n2] += g;
+        G[n1][n2] -= g; G[n2][n1] -= g;
+      } else if (n1 === groundNodeIdx) {
+        G[n2][n2] += g;
+      } else if (n2 === groundNodeIdx) {
+        G[n1][n1] += g;
+      }
+    }
+
+    // Process components
+    data.components.forEach((comp: CircuitComponent) => {
+      const nodes = getNodes(comp);
+      if (nodes.length === 0) return;
 
       switch (comp.type) {
         case 'resistor':
+        case 'potentiometer':
         case 'lamp': {
-          if (terminalNodes.length < 2) break;
-          const n1 = terminalNodes[0];
-          const n2 = terminalNodes[1];
-          const g = 1 / Math.max(comp.value, 0.001); // conductance
-          
-          if (n1 !== groundNodeIdx && n2 !== groundNodeIdx) {
-            G[n1][n1] += g;
-            G[n2][n2] += g;
-            G[n1][n2] -= g;
-            G[n2][n1] -= g;
-          } else if (n1 === groundNodeIdx) {
-            G[n2][n2] += g;
-          } else if (n2 === groundNodeIdx) {
-            G[n1][n1] += g;
-          }
+          if (nodes.length < 2) break;
+          const g = 1 / Math.max(comp.value, 0.001);
+          addConductance(nodes[0], nodes[1], g);
+          break;
+        }
+        case 'capacitor': {
+          // In DC: open circuit (infinite resistance) - no current flows
+          // We don't add anything to the matrix
+          break;
+        }
+        case 'inductor': {
+          // In DC: short circuit (zero resistance)
+          if (nodes.length < 2) break;
+          addConductance(nodes[0], nodes[1], 1e6);
           break;
         }
         case 'voltage_source':
-        case 'led': {
-          if (terminalNodes.length < 2) break;
-          const n1 = terminalNodes[0]; // positive terminal
-          const n2 = terminalNodes[1]; // negative terminal
+        case 'battery':
+        case 'ac_voltage': {
+          if (nodes.length < 2) break;
           const row = n + vsCounter;
           vsRowMap.set(comp.id, row);
-          
-          // B matrix: +1 for n1, -1 for n2
-          if (n1 !== groundNodeIdx) {
-            G[n1][row] += 1;
-            G[row][n1] += 1;
-          }
-          if (n2 !== groundNodeIdx) {
-            G[n2][row] -= 1;
-            G[row][n2] -= 1;
-          }
-          // RHS: voltage value
+          if (nodes[0] !== groundNodeIdx) { G[nodes[0]][row] += 1; G[row][nodes[0]] += 1; }
+          if (nodes[1] !== groundNodeIdx) { G[nodes[1]][row] -= 1; G[row][nodes[1]] -= 1; }
           rhs[row] = comp.value;
           vsCounter++;
           break;
         }
-        case 'current_source': {
-          if (terminalNodes.length < 2) break;
-          const n1 = terminalNodes[0];
-          const n2 = terminalNodes[1];
-          // Current flows from + to -
-          if (n1 !== groundNodeIdx) rhs[n1] -= comp.value;
-          if (n2 !== groundNodeIdx) rhs[n2] += comp.value;
+        case 'current_source':
+        case 'ac_current': {
+          if (nodes.length < 2) break;
+          // Current flows from terminal 0 to terminal 1
+          if (nodes[0] !== groundNodeIdx) rhs[nodes[0]] -= comp.value;
+          if (nodes[1] !== groundNodeIdx) rhs[nodes[1]] += comp.value;
           break;
         }
-        case 'switch': {
-          if (terminalNodes.length < 2) break;
+        case 'diode':
+        case 'schottky_diode':
+        case 'photodiode': {
+          // Simplified DC model: voltage drop = comp.value when forward biased
+          if (nodes.length < 2) break;
+          const row = n + vsCounter;
+          vsRowMap.set(comp.id, row);
+          if (nodes[0] !== groundNodeIdx) { G[nodes[0]][row] += 1; G[row][nodes[0]] += 1; }
+          if (nodes[1] !== groundNodeIdx) { G[nodes[1]][row] -= 1; G[row][nodes[1]] -= 1; }
+          rhs[row] = comp.value; // Forward voltage drop
+          vsCounter++;
+          break;
+        }
+        case 'zener_diode': {
+          // Zener: behaves like regular diode in forward, voltage regulator in reverse
+          if (nodes.length < 2) break;
+          const row = n + vsCounter;
+          vsRowMap.set(comp.id, row);
+          if (nodes[0] !== groundNodeIdx) { G[nodes[0]][row] += 1; G[row][nodes[0]] += 1; }
+          if (nodes[1] !== groundNodeIdx) { G[nodes[1]][row] -= 1; G[row][nodes[1]] -= 1; }
+          rhs[row] = comp.value; // Zener voltage
+          vsCounter++;
+          break;
+        }
+        case 'led': {
+          if (nodes.length < 2) break;
+          const row = n + vsCounter;
+          vsRowMap.set(comp.id, row);
+          if (nodes[0] !== groundNodeIdx) { G[nodes[0]][row] += 1; G[row][nodes[0]] += 1; }
+          if (nodes[1] !== groundNodeIdx) { G[nodes[1]][row] -= 1; G[row][nodes[1]] -= 1; }
+          rhs[row] = comp.value; // LED forward voltage
+          vsCounter++;
+          break;
+        }
+        case 'switch_spst':
+        case 'push_button': {
+          if (nodes.length < 2) break;
           if (comp.properties.closed) {
-            const n1 = terminalNodes[0];
-            const n2 = terminalNodes[1];
-            const g = 10000; // Very high conductance
-            if (n1 !== groundNodeIdx && n2 !== groundNodeIdx) {
-              G[n1][n1] += g;
-              G[n2][n2] += g;
-              G[n1][n2] -= g;
-              G[n2][n1] -= g;
-            } else if (n1 === groundNodeIdx) {
-              G[n2][n2] += g;
-            } else if (n2 === groundNodeIdx) {
-              G[n1][n1] += g;
-            }
+            addConductance(nodes[0], nodes[1], 1e4);
           }
+          break;
+        }
+        case 'switch_spdt': {
+          // SPDT: common (terminal 0) connects to terminal 1 or 2 based on position
+          if (nodes.length < 3) break;
+          const target = comp.properties.position === 0 ? nodes[1] : nodes[2];
+          addConductance(nodes[0], target, 1e4);
+          break;
+        }
+        case 'opamp': {
+          // Ideal op-amp: V+ = V- (virtual short), infinite gain
+          // Terminals: 0=non-inv(+), 1=inv(-), 2=output
+          if (nodes.length < 3) break;
+          const vPlus = nodes[0]; // non-inverting input
+          const vMinus = nodes[1]; // inverting input
+          const vOut = nodes[2]; // output
+          // Model: Vout = A * (V+ - V-), with A very large
+          // Use MNA: add constraint Vout = A*(V+ - V-)
+          const row = n + vsCounter;
+          vsRowMap.set(comp.id, row);
+          const A = comp.value; // open-loop gain (default 100000)
+          if (vPlus !== groundNodeIdx) G[row][vPlus] += A;
+          if (vMinus !== groundNodeIdx) G[row][vMinus] -= A;
+          if (vOut !== groundNodeIdx) { G[vOut][row] -= 1; G[row][vOut] += 1; }
+          rhs[row] = 0;
+          vsCounter++;
+          break;
+        }
+        case 'transformer': {
+          // Ideal transformer: V2 = N*V1, I1 = N*I2
+          // 4 terminals: 0=primary+, 1=primary-, 2=secondary+, 3=secondary-
+          if (nodes.length < 4) break;
+          const N = comp.value; // turns ratio
+          // V_secondary = N * V_primary
+          const vp = nodes[0]; const vn = nodes[1];
+          const vs_p = nodes[2]; const vs_n = nodes[3];
+          // Add coupled equations
+          const row1 = n + vsCounter;
+          vsRowMap.set(comp.id + '_v', row1);
+          if (vp !== groundNodeIdx) G[row1][vp] += 1;
+          if (vn !== groundNodeIdx) G[row1][vn] -= 1;
+          if (vs_p !== groundNodeIdx) G[vs_p][row1] -= N;
+          if (vs_n !== groundNodeIdx) G[vs_n][row1] += N;
+          rhs[row1] = 0;
+          vsCounter++;
           break;
         }
         case 'ammeter': {
-          // Ammeter is essentially a short circuit (0 resistance)
-          if (terminalNodes.length < 2) break;
-          const n1 = terminalNodes[0];
-          const n2 = terminalNodes[1];
+          // Ammeter = short circuit, measure current
+          if (nodes.length < 2) break;
           const row = n + vsCounter;
           vsRowMap.set(comp.id, row);
-          if (n1 !== groundNodeIdx) {
-            G[n1][row] += 1;
-            G[row][n1] += 1;
-          }
-          if (n2 !== groundNodeIdx) {
-            G[n2][row] -= 1;
-            G[row][n2] -= 1;
-          }
-          rhs[row] = 0; // 0V drop
+          if (nodes[0] !== groundNodeIdx) { G[nodes[0]][row] += 1; G[row][nodes[0]] += 1; }
+          if (nodes[1] !== groundNodeIdx) { G[nodes[1]][row] -= 1; G[row][nodes[1]] -= 1; }
+          rhs[row] = 0;
           vsCounter++;
           break;
         }
         case 'voltmeter': {
-          // Voltmeter has infinite resistance - just measure, don't affect circuit
+          // Voltmeter: infinite resistance, just measures - don't affect circuit
           break;
         }
-        case 'ground': {
-          // Ground is handled by setting node voltage to 0
+        case 'ground':
+        case 'voltage_label':
+        case 'wire':
           break;
-        }
       }
     });
 
-    // Solve the linear system
+    // Solve
     const solution = solveLinearSystem(G, rhs, size);
-
     if (!solution) {
-      return { nodeVoltages: [], branchCurrents: [], totalPower: 0, success: false, error: 'No se pudo resolver el circuito. Verifica que haya una ruta cerrada y un nodo de tierra.' };
+      return { nodeVoltages: [], branchCurrents: [], totalPower: 0, success: false, 
+        error: 'Circuito no resoluble. Verifica: 1) Hay tierra (GND), 2) Hay fuente de voltaje, 3) Circuito cerrado.' };
     }
 
-    // Extract node voltages
-    const nodeVoltages: SimulationResult[] = nodeIds.map(id => ({
-      nodeId: String(id),
-      voltage: id === groundNodeIdx ? 0 : solution[id] || 0,
-    }));
+    // Build results
+    const nodeVoltages: SimulationResult[] = [];
+    for (let i = 0; i < n; i++) {
+      nodeVoltages.push({ nodeId: String(i), voltage: i === groundNodeIdx ? 0 : solution[i] || 0 });
+    }
 
-    // Calculate branch currents and voltages
     const branchCurrents: BranchCurrent[] = [];
     let totalPower = 0;
 
-    data.components.forEach(comp => {
-      if (comp.terminals.length < 2) {
+    data.components.forEach((comp: CircuitComponent) => {
+      const nodes = getNodes(comp);
+      if (nodes.length < 2) {
         branchCurrents.push({ componentId: comp.id, current: 0, voltage: 0, power: 0 });
         return;
       }
 
-      const terminalNodes: number[] = [];
-      comp.terminals.forEach((term, ti) => {
-        const termPointIdx = allPoints.findIndex(p => 
-          p.componentId === comp.id && p.terminalIndex === ti
-        );
-        if (termPointIdx >= 0 && pointToNode.has(termPointIdx)) {
-          terminalNodes.push(pointToNode.get(termPointIdx)!);
-        }
-      });
-
-      if (terminalNodes.length < 2) {
-        branchCurrents.push({ componentId: comp.id, current: 0, voltage: 0, power: 0 });
-        return;
-      }
-
-      const n1 = terminalNodes[0];
-      const n2 = terminalNodes[1];
-      const v1 = n1 === groundNodeIdx ? 0 : (solution[n1] || 0);
-      const v2 = n2 === groundNodeIdx ? 0 : (solution[n2] || 0);
+      const v1 = nodes[0] === groundNodeIdx ? 0 : (solution[nodes[0]] || 0);
+      const v2 = nodes[1] === groundNodeIdx ? 0 : (solution[nodes[1]] || 0);
       const vDiff = v1 - v2;
-
       let current = 0;
-      let voltage = vDiff;
 
       switch (comp.type) {
         case 'resistor':
+        case 'potentiometer':
         case 'lamp':
           current = vDiff / Math.max(comp.value, 0.001);
           break;
+        case 'inductor':
+          current = vDiff * 1e6;
+          break;
         case 'voltage_source':
+        case 'battery':
+        case 'ac_voltage':
+        case 'diode':
+        case 'zener_diode':
+        case 'schottky_diode':
         case 'led':
+        case 'photodiode':
         case 'ammeter': {
           const row = vsRowMap.get(comp.id);
-          if (row !== undefined) {
-            current = solution[row] || 0;
-          }
+          if (row !== undefined) current = solution[row] || 0;
           break;
         }
         case 'current_source':
+        case 'ac_current':
           current = comp.value;
           break;
-        case 'switch':
-          if (comp.properties.closed) {
-            current = vDiff * 10000;
+        case 'switch_spst':
+        case 'push_button':
+          if (comp.properties.closed) current = vDiff * 1e4;
+          break;
+        case 'switch_spdt': {
+          if (nodes.length >= 3) {
+            const target = comp.properties.position === 0 ? nodes[1] : nodes[2];
+            const vTarget = target === groundNodeIdx ? 0 : (solution[target] || 0);
+            current = (v1 - vTarget) * 1e4;
           }
+          break;
+        }
+        case 'capacitor':
+          current = 0; // DC open circuit
           break;
         case 'voltmeter':
           current = 0;
           break;
+        default:
+          current = 0;
       }
 
       const power = Math.abs(vDiff * current);
       totalPower += power;
-
-      branchCurrents.push({ componentId: comp.id, current, voltage, power });
+      branchCurrents.push({ componentId: comp.id, current, voltage: vDiff, power });
     });
 
     return { nodeVoltages, branchCurrents, totalPower, success: true };
@@ -339,57 +361,30 @@ export function simulateCircuit(data: CircuitData): SimulationData {
 }
 
 function solveLinearSystem(A: number[][], b: number[], n: number): number[] | null {
-  // Create augmented matrix
   const aug: number[][] = [];
-  for (let i = 0; i < n; i++) {
-    aug.push([...A[i], b[i]]);
-  }
+  for (let i = 0; i < n; i++) aug.push([...A[i], b[i]]);
 
-  // Forward elimination with partial pivoting
   for (let col = 0; col < n; col++) {
-    // Find pivot
     let maxRow = col;
     let maxVal = Math.abs(aug[col][col]);
     for (let row = col + 1; row < n; row++) {
-      if (Math.abs(aug[row][col]) > maxVal) {
-        maxVal = Math.abs(aug[row][col]);
-        maxRow = row;
-      }
+      if (Math.abs(aug[row][col]) > maxVal) { maxVal = Math.abs(aug[row][col]); maxRow = row; }
     }
-
-    if (maxVal < 1e-10) {
-      // Column is essentially zero - skip (singular system)
-      continue;
-    }
-
-    // Swap rows
-    if (maxRow !== col) {
-      [aug[col], aug[maxRow]] = [aug[maxRow], aug[col]];
-    }
-
-    // Eliminate below
+    if (maxVal < 1e-10) continue;
+    if (maxRow !== col) [aug[col], aug[maxRow]] = [aug[maxRow], aug[col]];
     for (let row = col + 1; row < n; row++) {
       if (Math.abs(aug[col][col]) < 1e-15) continue;
       const factor = aug[row][col] / aug[col][col];
-      for (let j = col; j <= n; j++) {
-        aug[row][j] -= factor * aug[col][j];
-      }
+      for (let j = col; j <= n; j++) aug[row][j] -= factor * aug[col][j];
     }
   }
 
-  // Back substitution
   const x: number[] = new Array(n).fill(0);
   for (let i = n - 1; i >= 0; i--) {
-    if (Math.abs(aug[i][i]) < 1e-10) {
-      x[i] = 0;
-      continue;
-    }
+    if (Math.abs(aug[i][i]) < 1e-10) { x[i] = 0; continue; }
     let sum = aug[i][n];
-    for (let j = i + 1; j < n; j++) {
-      sum -= aug[i][j] * x[j];
-    }
+    for (let j = i + 1; j < n; j++) sum -= aug[i][j] * x[j];
     x[i] = sum / aug[i][i];
   }
-
   return x;
 }
