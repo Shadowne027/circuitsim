@@ -12,6 +12,8 @@ interface Props {
   onMouseUp: (e: React.MouseEvent, point: Point) => void;
   onComponentClick: (id: string) => void;
   onWireClick: (id: string) => void;
+  onComponentHover: (id: string | null, e?: React.MouseEvent) => void;
+  onWireHover: (id: string | null, e?: React.MouseEvent) => void;
   panOffset: Point;
   zoom: number;
   currentWirePoints?: Point[];
@@ -382,6 +384,7 @@ function renderWire(wire: Wire, isSelected: boolean) {
 export default function CircuitCanvas({ 
   components, wires, selectedId, showValues, simulationResults,
   onMouseDown, onMouseMove, onMouseUp, onComponentClick, onWireClick,
+  onComponentHover, onWireHover,
   panOffset, zoom, currentWirePoints = [], isDrawing = false, mousePoint = null
 }: Props) {
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -428,12 +431,22 @@ export default function CircuitCanvas({
       
       <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoom})`}>
         {wires.map(wire => (
-          <g key={wire.id} onClick={(e) => { e.stopPropagation(); onWireClick(wire.id); }} className="cursor-pointer">
+          <g key={wire.id} 
+            onClick={(e) => { e.stopPropagation(); onWireClick(wire.id); }}
+            onMouseEnter={(e) => onWireHover(wire.id, e)}
+            onMouseMove={(e) => onWireHover(wire.id, e)}
+            onMouseLeave={() => onWireHover(null)}
+            className="cursor-pointer">
             {renderWire(wire, selectedId === wire.id)}
           </g>
         ))}
         {components.map(comp => (
-          <g key={comp.id} onClick={(e) => { e.stopPropagation(); onComponentClick(comp.id); }} className="cursor-pointer">
+          <g key={comp.id} 
+            onClick={(e) => { e.stopPropagation(); onComponentClick(comp.id); }}
+            onMouseEnter={(e) => onComponentHover(comp.id, e)}
+            onMouseMove={(e) => onComponentHover(comp.id, e)}
+            onMouseLeave={() => onComponentHover(null)}
+            className="cursor-pointer">
             {renderComponent(comp, selectedId === comp.id, showValues, simulationResults.get(comp.id))}
           </g>
         ))}

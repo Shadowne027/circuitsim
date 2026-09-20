@@ -117,6 +117,7 @@ export default function App() {
   const [circuitName, setCircuitName] = useState('Mi Circuito');
   const [statusMessage, setStatusMessage] = useState('');
   const [showWelcome, setShowWelcome] = useState(true);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
   const svgRef = useRef<HTMLDivElement>(null);
 
   const showStatus = (msg: string, duration = 3000) => {
@@ -297,6 +298,82 @@ export default function App() {
   const handleWireClick = useCallback((id: string) => {
     setSelectedId(id);
   }, []);
+
+  const handleComponentHover = useCallback((id: string | null, e?: React.MouseEvent) => {
+    if (!id || !simulationData?.success) {
+      setTooltip(null);
+      return;
+    }
+    
+    const comp = circuitData.components.find((c: CircuitComponent) => c.id === id);
+    if (!comp) {
+      setTooltip(null);
+      return;
+    }
+
+    const result = simulationResults.get(id);
+    if (!result) {
+      setTooltip(null);
+      return;
+    }
+
+    const voltage = Math.abs(result.voltage);
+    const current = Math.abs(result.current);
+    const power = voltage * current;
+
+    let content = `${comp.label} (${comp.type.replace(/_/g, ' ')})\n`;
+    content += `V: ${voltage.toFixed(3)} V\n`;
+    content += `I: ${(current * 1000).toFixed(3)} mA\n`;
+    content += `P: ${(power * 1000).toFixed(3)} mW`;
+
+    if (comp.value > 0) {
+      content += `\nValor: ${comp.value} ${comp.unit}`;
+    }
+
+    setTooltip({
+      x: e?.clientX || 0,
+      y: e?.clientY || 0,
+      content
+    });
+  }, [simulationData, simulationResults, circuitData.components]);
+
+  const handleWireHover = useCallback((id: string | null, e?: React.MouseEvent) => {
+    if (!id || !simulationData?.success) {
+      setTooltip(null);
+      return;
+    }
+
+    const wire = circuitData.wires.find((w: Wire) => w.id === id);
+    if (!wire) {
+      setTooltip(null);
+      return;
+    }
+
+    // Calcular voltaje del nodo del cable
+    let voltage = 0;
+    if (wire.points.length > 0) {
+      const point = wire.points[0];
+      const comp = circuitData.components.find((c: CircuitComponent) => 
+        c.terminals.some((t: any) => 
+          Math.abs(t.position.x - point.x) < 5 && Math.abs(t.position.y - point.y) < 5
+        )
+      );
+      if (comp) {
+        const result = simulationResults.get(comp.id);
+        if (result) {
+          voltage = Math.abs(result.voltage);
+        }
+      }
+    }
+
+    const content = `Cable\nV: ${voltage.toFixed(3)} V\nNodo conectado`;
+
+    setTooltip({
+      x: e?.clientX || 0,
+      y: e?.clientY || 0,
+      content
+    });
+  }, [simulationData, simulationResults, circuitData]);
 
   const handleUpdateComponent = useCallback((id: string, updates: Partial<CircuitComponent>) => {
     saveHistory();
@@ -570,6 +647,8 @@ export default function App() {
             onMouseUp={handleMouseUp}
             onComponentClick={handleComponentClick}
             onWireClick={handleWireClick}
+            onComponentHover={handleComponentHover}
+            onWireHover={handleWireHover}
             panOffset={panOffset}
             zoom={zoom}
             currentWirePoints={currentWirePoints}
@@ -590,6 +669,20 @@ export default function App() {
           {statusMessage && (
             <div className="absolute bottom-3 right-3 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg">
               {statusMessage}
+            </div>
+          )}
+
+          {/* Tooltip flotante */}
+          {tooltip && (
+            <div 
+              className="fixed pointer-events-none z-50 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl border border-gray-700"
+              style={{ 
+                left: tooltip.x + 15, 
+                top: tooltip.y + 15,
+                whiteSpace: 'pre-line'
+              }}
+            >
+              {tooltip.content}
             </div>
           )}
         </div>
