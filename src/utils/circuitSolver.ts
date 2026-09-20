@@ -1,9 +1,11 @@
 import { CircuitData, SimulationData, BranchCurrent, SimulationResult, CircuitComponent } from '../types';
 
-const TOLERANCE = 5;
+const TOLERANCE = 15; // Aumentado de 5 a 15 para mejor detección de conexiones
 
 function pointsMatch(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
-  return Math.abs(a.x - b.x) < TOLERANCE && Math.abs(a.y - b.y) < TOLERANCE;
+  const dx = Math.abs(a.x - b.x);
+  const dy = Math.abs(a.y - b.y);
+  return dx < TOLERANCE && dy < TOLERANCE;
 }
 
 export function simulateCircuit(data: CircuitData): SimulationData {

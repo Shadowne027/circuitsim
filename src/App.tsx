@@ -121,6 +121,7 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('');
   const [showWelcome, setShowWelcome] = useState(true);
   const [showConcepts, setShowConcepts] = useState(false);
+  const [showNodes, setShowNodes] = useState(false);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
   const svgRef = useRef<HTMLDivElement>(null);
 
@@ -828,6 +829,8 @@ export default function App() {
             onExportImage={handleExportImage}
             showValues={showValues}
             onToggleValues={() => setShowValues(!showValues)}
+            showNodes={showNodes}
+            onToggleNodes={() => setShowNodes(!showNodes)}
             isSimulating={isSimulating}
           />
         </div>
@@ -852,6 +855,7 @@ export default function App() {
             currentWirePoints={currentWirePoints}
             isDrawing={isDrawing}
             mousePoint={mousePoint}
+            showNodes={showNodes}
           />
           
           {isDrawing && (

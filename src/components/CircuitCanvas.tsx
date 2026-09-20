@@ -19,6 +19,7 @@ interface Props {
   currentWirePoints?: Point[];
   isDrawing?: boolean;
   mousePoint?: Point | null;
+  showNodes?: boolean;
 }
 
 function snapToGrid(point: Point): Point {
@@ -385,7 +386,8 @@ export default function CircuitCanvas({
   components, wires, selectedId, showValues, simulationResults,
   onMouseDown, onMouseMove, onMouseUp, onComponentClick, onWireClick,
   onComponentHover, onWireHover,
-  panOffset, zoom, currentWirePoints = [], isDrawing = false, mousePoint = null
+  panOffset, zoom, currentWirePoints = [], isDrawing = false, mousePoint = null,
+  showNodes = false
 }: Props) {
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const svg = e.currentTarget;
@@ -408,6 +410,75 @@ export default function CircuitCanvas({
     const point = snapToGrid({ x: (e.clientX - rect.left - panOffset.x) / zoom, y: (e.clientY - rect.top - panOffset.y) / zoom });
     onMouseUp(e, point);
   }, [onMouseUp, panOffset, zoom]);
+
+  // Calculate nodes for visualization
+  const calculateNodes = useCallback(() => {
+    const TOLERANCE = 15;
+    const allPoints: { x: number; y: number; idx: number }[] = [];
+    
+    // Add component terminals
+    components.forEach(comp => {
+      comp.terminals.forEach(term => {
+        allPoints.push({ x: term.position.x, y: term.position.y, idx: allPoints.length });
+      });
+    });
+    
+    // Add wire points
+    wires.forEach(wire => {
+      wire.points.forEach(pt => {
+        allPoints.push({ x: pt.x, y: pt.y, idx: allPoints.length });
+      });
+    });
+
+    // Union-Find
+    const parent = new Map<number, number>();
+    function find(x: number): number {
+      if (!parent.has(x)) parent.set(x, x);
+      if (parent.get(x) !== x) parent.set(x, find(parent.get(x)!));
+      return parent.get(x)!;
+    }
+    function union(a: number, b: number) {
+      const ra = find(a); const rb = find(b);
+      if (ra !== rb) parent.set(ra, rb);
+    }
+
+    // Connect nearby points
+    for (let i = 0; i < allPoints.length; i++) {
+      for (let j = i + 1; j < allPoints.length; j++) {
+        const dx = Math.abs(allPoints[i].x - allPoints[j].x);
+        const dy = Math.abs(allPoints[i].y - allPoints[j].y);
+        if (dx < TOLERANCE && dy < TOLERANCE) {
+          union(i, j);
+        }
+      }
+    }
+
+    // Connect wire segments
+    wires.forEach(wire => {
+      const indices: number[] = [];
+      allPoints.forEach((pt, idx) => {
+        if (wire.points.some(wp => wp.x === pt.x && wp.y === pt.y)) {
+          indices.push(idx);
+        }
+      });
+      for (let i = 0; i < indices.length - 1; i++) {
+        union(indices[i], indices[i + 1]);
+      }
+    });
+
+    // Group by node
+    const nodeGroups = new Map<number, { x: number; y: number }[]>();
+    allPoints.forEach((pt, idx) => {
+      const root = find(idx);
+      if (!nodeGroups.has(root)) nodeGroups.set(root, []);
+      nodeGroups.get(root)!.push(pt);
+    });
+
+    return Array.from(nodeGroups.values());
+  }, [components, wires]);
+
+  const nodes = showNodes ? calculateNodes() : [];
+  const nodeColors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
   return (
     <svg className="w-full h-full cursor-crosshair" style={{ background: '#f8f9fa' }}
@@ -450,6 +521,23 @@ export default function CircuitCanvas({
             {renderComponent(comp, selectedId === comp.id, showValues, simulationResults.get(comp.id))}
           </g>
         ))}
+        
+        {/* Debug: Show nodes */}
+        {showNodes && nodes.map((node, nodeIdx) => {
+          const color = nodeColors[nodeIdx % nodeColors.length];
+          return node.map((pt, ptIdx) => (
+            <circle 
+              key={`node-${nodeIdx}-${ptIdx}`}
+              cx={pt.x} 
+              cy={pt.y} 
+              r="8" 
+              fill={color} 
+              opacity="0.3"
+              stroke={color}
+              strokeWidth="2"
+            />
+          ));
+        })}
         {isDrawing && (
           <g>
             {/* Puntos fijos ya colocados */}

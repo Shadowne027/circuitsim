@@ -12,6 +12,8 @@ interface Props {
   onExportImage: () => void;
   showValues: boolean;
   onToggleValues: () => void;
+  showNodes: boolean;
+  onToggleNodes: () => void;
   isSimulating: boolean;
 }
 
@@ -76,7 +78,7 @@ const categories = [
 
 export default function Toolbar({ 
   activeTool, onToolSelect, onSimulate, onClear, onSave, onLoad, onNew, onExportImage,
-  showValues, onToggleValues, isSimulating 
+  showValues, onToggleValues, showNodes, onToggleNodes, isSimulating 
 }: Props) {
   return (
     <div className="flex flex-col h-full bg-gray-50 border-r border-gray-200 overflow-y-auto">
@@ -106,6 +108,10 @@ export default function Toolbar({
         <button onClick={onToggleValues}
           className={`w-full mt-1 text-[11px] px-2 py-1.5 rounded border ${showValues ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300'}`}>
           {showValues ? '👁️ Valores ON' : '👁️ Valores OFF'}
+        </button>
+        <button onClick={onToggleNodes}
+          className={`w-full mt-1 text-[11px] px-2 py-1.5 rounded border ${showNodes ? 'bg-purple-50 border-purple-200 text-purple-700' : 'bg-white border-gray-300'}`}>
+          {showNodes ? '🔴 Nodos ON (debug)' : '🔴 Nodos OFF (debug)'}
         </button>
       </div>
 
