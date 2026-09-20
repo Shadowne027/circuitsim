@@ -109,6 +109,7 @@ export default function App() {
   const [isPanning, setIsPanning] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentWirePoints, setCurrentWirePoints] = useState<Point[]>([]);
+  const [mousePoint, setMousePoint] = useState<Point | null>(null);
   const [dragStart, setDragStart] = useState<Point | null>(null);
   const [isDraggingComponent, setIsDraggingComponent] = useState(false);
   const [dragComponentOffset, setDragComponentOffset] = useState<Point>({ x: 0, y: 0 });
@@ -206,6 +207,11 @@ export default function App() {
   }, [activeTool, isDrawing, currentWirePoints, createComponent, panOffset, circuitData.components, saveHistory]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent, point: Point) => {
+    // Actualizar punto del mouse en tiempo real (sin snap) para dibujar cable suavemente
+    if (isDrawing) {
+      setMousePoint(point);
+    }
+    
     if (isPanning && dragStart) {
       setPanOffset({
         x: e.clientX - dragStart.x,
@@ -230,7 +236,7 @@ export default function App() {
       setSimulationData(null);
       setSimulationResults(new Map());
     }
-  }, [isPanning, dragStart, isDraggingComponent, selectedId, dragComponentOffset]);
+  }, [isPanning, dragStart, isDraggingComponent, selectedId, dragComponentOffset, isDrawing]);
 
   const handleMouseUp = useCallback((_e: React.MouseEvent, _point: Point) => {
     if (isPanning) {
@@ -258,6 +264,7 @@ export default function App() {
     }
     setIsDrawing(false);
     setCurrentWirePoints([]);
+    setMousePoint(null);
   }, [currentWirePoints, saveHistory]);
 
   const handleDoubleClick = useCallback(() => {
@@ -567,6 +574,7 @@ export default function App() {
             zoom={zoom}
             currentWirePoints={currentWirePoints}
             isDrawing={isDrawing}
+            mousePoint={mousePoint}
           />
           
           {isDrawing && (

@@ -16,6 +16,7 @@ interface Props {
   zoom: number;
   currentWirePoints?: Point[];
   isDrawing?: boolean;
+  mousePoint?: Point | null;
 }
 
 function snapToGrid(point: Point): Point {
@@ -381,7 +382,7 @@ function renderWire(wire: Wire, isSelected: boolean) {
 export default function CircuitCanvas({ 
   components, wires, selectedId, showValues, simulationResults,
   onMouseDown, onMouseMove, onMouseUp, onComponentClick, onWireClick,
-  panOffset, zoom, currentWirePoints = [], isDrawing = false
+  panOffset, zoom, currentWirePoints = [], isDrawing = false, mousePoint = null
 }: Props) {
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const svg = e.currentTarget;
@@ -393,8 +394,9 @@ export default function CircuitCanvas({
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const svg = e.currentTarget;
     const rect = svg.getBoundingClientRect();
-    const point = snapToGrid({ x: (e.clientX - rect.left - panOffset.x) / zoom, y: (e.clientY - rect.top - panOffset.y) / zoom });
-    onMouseMove(e, point);
+    // Punto sin snap para seguimiento suave del mouse
+    const rawPoint = { x: (e.clientX - rect.left - panOffset.x) / zoom, y: (e.clientY - rect.top - panOffset.y) / zoom };
+    onMouseMove(e, rawPoint);
   }, [onMouseMove, panOffset, zoom]);
 
   const handleMouseUp = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -435,13 +437,28 @@ export default function CircuitCanvas({
             {renderComponent(comp, selectedId === comp.id, showValues, simulationResults.get(comp.id))}
           </g>
         ))}
-        {isDrawing && currentWirePoints.length > 0 && (
+        {isDrawing && (
           <g>
-            <path d={currentWirePoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')}
-              fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="5,5" strokeLinecap="round"/>
-            {currentWirePoints.map((p, i) => (
-              <circle key={i} cx={p.x} cy={p.y} r="3" fill="#3b82f6" opacity="0.7"/>
-            ))}
+            {/* Puntos fijos ya colocados */}
+            {currentWirePoints.length > 0 && (
+              <>
+                <path d={currentWirePoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')}
+                  fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                {currentWirePoints.map((p, i) => (
+                  <circle key={i} cx={p.x} cy={p.y} r="3" fill="#3b82f6"/>
+                ))}
+              </>
+            )}
+            {/* Línea suave siguiendo el mouse */}
+            {mousePoint && currentWirePoints.length > 0 && (
+              <path 
+                d={`M${currentWirePoints[currentWirePoints.length - 1].x},${currentWirePoints[currentWirePoints.length - 1].y} L${mousePoint.x},${mousePoint.y}`}
+                fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="4,4" strokeLinecap="round" opacity="0.6"/>
+            )}
+            {/* Punto inicial si aún no hay puntos fijos */}
+            {mousePoint && currentWirePoints.length === 0 && (
+              <circle cx={mousePoint.x} cy={mousePoint.y} r="4" fill="#3b82f6" opacity="0.5"/>
+            )}
           </g>
         )}
       </g>
