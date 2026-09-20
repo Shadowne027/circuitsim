@@ -1,6 +1,7 @@
 import React from 'react';
 import { CircuitData } from '../types';
 import { getOhmLawExample, getSeriesCircuitExample, getLEDExample, getSwitchExample } from '../utils/examples';
+import { getSimpleSeriesExample } from '../utils/simpleExample';
 
 interface Props {
   onClose: () => void;
@@ -10,6 +11,7 @@ interface Props {
 
 export default function WelcomeModal({ onClose, onLoadExample, onLoadFile }: Props) {
   const examples = [
+    { name: 'Ejercicio Simple', desc: 'V=10V, R1=100Ω, R2=200Ω', data: getSimpleSeriesExample(), icon: '📝' },
     { name: 'Ley de Ohm', desc: 'V=IR básico', data: getOhmLawExample(), icon: '⚡' },
     { name: 'Circuito Serie', desc: 'Resistencias en serie', data: getSeriesCircuitExample(), icon: '🔗' },
     { name: 'LED + Resistencia', desc: 'LED con limitador', data: getLEDExample(), icon: '💡' },
