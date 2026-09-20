@@ -40,7 +40,7 @@ function t(comp: CircuitComponent, idx: number): Point {
 
 export function getOhmLawExample(): CircuitData {
   // Simple circuit: Battery 12V -> Resistor 1kΩ -> Ground
-  // V1 at (200, 200), horizontal: t1=(170,200), t2=(230,200)
+  // V1 at (200, 200), horizontal: t1=(170,200) positivo, t2=(230,200) negativo
   // R1 at (300, 300), vertical (90°): t1=(300,270), t2=(300,330)
   // GND at (200, 400): t1=(200,380)
   const v1 = makeComponent('voltage_source', { x: 200, y: 200 }, 12, 'V', 'V1');
@@ -55,12 +55,12 @@ export function getOhmLawExample(): CircuitData {
     date: new Date().toISOString(),
     components: [v1, r1, g1],
     wires: [
-      // V1 t2 (230,200) -> R1 t1 (300,270)
-      makeWire([t(v1, 1), { x: 300, y: 200 }, t(r1, 0)]),
+      // V1 t1 (170,200) positivo -> R1 t1 (300,270)
+      makeWire([t(v1, 0), { x: 170, y: 270 }, t(r1, 0)]),
       // R1 t2 (300,330) -> GND t1 (200,380)
       makeWire([t(r1, 1), { x: 300, y: 380 }, t(g1, 0)]),
-      // GND t1 (200,380) -> V1 t1 (170,200)
-      makeWire([t(g1, 0), { x: 100, y: 380 }, { x: 100, y: 200 }, t(v1, 0)]),
+      // GND t1 (200,380) -> V1 t2 (230,200) negativo
+      makeWire([t(g1, 0), { x: 100, y: 380 }, { x: 100, y: 200 }, t(v1, 1)]),
     ],
     nodes: [],
     gridSize: 20,
@@ -90,16 +90,16 @@ export function getSeriesCircuitExample(): CircuitData {
     date: new Date().toISOString(),
     components: [v1, r1, r2, r3, g1],
     wires: [
-      // V1 t2 (180,150) -> R1 t1 (150,230) via right side
-      makeWire([t(v1, 1), { x: 300, y: 150 }, { x: 300, y: 460 }, t(r3, 1)]),
-      // V1 t1 (120,150) -> R1 t1 (150,230)
+      // V1 t1 (120,150) positivo -> R1 t1 (150,230)
       makeWire([t(v1, 0), { x: 60, y: 150 }, { x: 60, y: 260 }, t(r1, 0)]),
       // R1 t2 (150,290) -> R2 t1 (150,330)
       makeWire([t(r1, 1), t(r2, 0)]),
       // R2 t2 (150,390) -> R3 t1 (150,430)
       makeWire([t(r2, 1), t(r3, 0)]),
-      // GND connection: R3 right side connects to GND
-      makeWire([t(g1, 0), { x: 150, y: 540 }]),
+      // R3 t2 (150,490) -> GND t1 (150,540)
+      makeWire([t(r3, 1), t(g1, 0)]),
+      // GND -> V1 t2 (180,150) negativo
+      makeWire([t(g1, 0), { x: 300, y: 540 }, { x: 300, y: 150 }, t(v1, 1)]),
     ],
     nodes: [],
     gridSize: 20,
@@ -127,16 +127,14 @@ export function getParallelCircuitExample(): CircuitData {
     date: new Date().toISOString(),
     components: [v1, r1, r2, g1],
     wires: [
-      // V1 t1 (100,270) -> top wire -> R1 t1 (220,200) and R2 t1 (220,400)
+      // V1 t1 (100,270) positivo -> R1 t1 (220,200) and R2 t1 (220,400)
       makeWire([t(v1, 0), { x: 100, y: 200 }, t(r1, 0)]),
       makeWire([{ x: 100, y: 200 }, { x: 100, y: 400 }, t(r2, 0)]),
-      // R1 t2 (280,200) -> bottom wire -> R2 t2 (280,400)
+      // R1 t2 (280,200) -> R2 t2 (280,400) -> GND
       makeWire([t(r1, 1), { x: 400, y: 200 }, { x: 400, y: 400 }, t(r2, 1)]),
-      // Return to V1 t2 (100,330) via GND
-      makeWire([{ x: 400, y: 400 }, { x: 400, y: 450 }, { x: 100, y: 450 }]),
-      makeWire([t(g1, 0), { x: 100, y: 430 }]),
-      // Connect GND to V1 t2
-      makeWire([t(v1, 1), { x: 100, y: 330 }, { x: 100, y: 430 }]),
+      makeWire([{ x: 400, y: 400 }, { x: 400, y: 450 }, { x: 100, y: 450 }, t(g1, 0)]),
+      // GND -> V1 t2 (100,330) negativo
+      makeWire([t(g1, 0), t(v1, 1)]),
     ],
     nodes: [],
     gridSize: 20,
@@ -164,14 +162,14 @@ export function getLEDExample(): CircuitData {
     date: new Date().toISOString(),
     components: [v1, r1, led1, g1],
     wires: [
-      // V1 t2 (180,150) -> right side -> R1 t1 (150,230)
-      makeWire([t(v1, 1), { x: 300, y: 150 }, { x: 300, y: 370 }, t(led1, 1)]),
-      // V1 t1 (120,150) -> R1 t1 (150,230)
+      // V1 t1 (120,150) positivo -> R1 t1 (150,230)
       makeWire([t(v1, 0), { x: 60, y: 150 }, { x: 60, y: 260 }, t(r1, 0)]),
       // R1 t2 (150,290) -> LED t1 (150,340)
       makeWire([t(r1, 1), t(led1, 0)]),
-      // GND -> LED t2
-      makeWire([t(g1, 0), { x: 150, y: 450 }]),
+      // LED t2 (150,400) -> GND t1 (150,450)
+      makeWire([t(led1, 1), t(g1, 0)]),
+      // GND -> V1 t2 (180,150) negativo
+      makeWire([t(g1, 0), { x: 300, y: 450 }, { x: 300, y: 150 }, t(v1, 1)]),
     ],
     nodes: [],
     gridSize: 20,
@@ -199,14 +197,14 @@ export function getSwitchExample(): CircuitData {
     date: new Date().toISOString(),
     components: [v1, s1, lamp, g1],
     wires: [
-      // V1 t2 (180,150) -> right -> Lamp t2 (150,400)
-      makeWire([t(v1, 1), { x: 300, y: 150 }, { x: 300, y: 370 }, t(lamp, 1)]),
-      // V1 t1 (120,150) -> Switch t1 (120,260)
+      // V1 t1 (120,150) positivo -> Switch t1 (120,260)
       makeWire([t(v1, 0), { x: 60, y: 150 }, { x: 60, y: 260 }, t(s1, 0)]),
       // Switch t2 (180,260) -> Lamp t1 (150,340)
       makeWire([t(s1, 1), { x: 250, y: 260 }, { x: 250, y: 370 }, t(lamp, 0)]),
-      // GND
-      makeWire([t(g1, 0), { x: 150, y: 450 }]),
+      // Lamp t2 (150,400) -> GND t1 (150,450)
+      makeWire([t(lamp, 1), t(g1, 0)]),
+      // GND -> V1 t2 (180,150) negativo
+      makeWire([t(g1, 0), { x: 300, y: 450 }, { x: 300, y: 150 }, t(v1, 1)]),
     ],
     nodes: [],
     gridSize: 20,
