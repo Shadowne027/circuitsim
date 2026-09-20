@@ -472,6 +472,10 @@ export default function CircuitCanvas({
             {mousePoint && currentWirePoints.length === 0 && (
               <circle cx={mousePoint.x} cy={mousePoint.y} r="4" fill="#3b82f6" opacity="0.5"/>
             )}
+            {/* Indicador de snap cuando está cerca de un terminal */}
+            {mousePoint && (
+              <circle cx={mousePoint.x} cy={mousePoint.y} r="6" fill="none" stroke="#22c55e" strokeWidth="2" opacity="0.8"/>
+            )}
           </g>
         )}
       </g>

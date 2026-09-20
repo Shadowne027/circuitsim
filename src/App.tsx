@@ -6,6 +6,7 @@ import PropertiesPanel from './components/PropertiesPanel';
 import { simulateCircuit } from './utils/circuitSolver';
 import { downloadCircuit, uploadCircuit, createEmptyCircuit } from './utils/fileHandler';
 import WelcomeModal from './components/WelcomeModal';
+import ConceptsModal from './components/ConceptsModal';
 
 function generateId(): string {
   return Math.random().toString(36).substr(2, 9);
@@ -117,6 +118,7 @@ export default function App() {
   const [circuitName, setCircuitName] = useState('Mi Circuito');
   const [statusMessage, setStatusMessage] = useState('');
   const [showWelcome, setShowWelcome] = useState(true);
+  const [showConcepts, setShowConcepts] = useState(false);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
   const svgRef = useRef<HTMLDivElement>(null);
 
@@ -167,6 +169,39 @@ export default function App() {
     showStatus(`+ ${type.replace(/_/g, ' ')} agregado`);
   }, [saveHistory]);
 
+  // Find nearest terminal within snap distance
+  const findNearestTerminal = useCallback((point: Point, snapDistance = 15): Point | null => {
+    let nearest: Point | null = null;
+    let minDist = snapDistance;
+
+    circuitData.components.forEach((comp: CircuitComponent) => {
+      comp.terminals.forEach((term: any) => {
+        const dx = term.position.x - point.x;
+        const dy = term.position.y - point.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = { x: term.position.x, y: term.position.y };
+        }
+      });
+    });
+
+    // Also check existing wire endpoints
+    circuitData.wires.forEach((wire: Wire) => {
+      wire.points.forEach((pt: Point) => {
+        const dx = pt.x - point.x;
+        const dy = pt.y - point.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = { x: pt.x, y: pt.y };
+        }
+      });
+    });
+
+    return nearest;
+  }, [circuitData]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent, point: Point) => {
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true);
@@ -175,13 +210,19 @@ export default function App() {
     }
 
     if (activeTool === 'wire') {
+      // Try to snap to nearest terminal
+      const snappedPoint = findNearestTerminal(point) || { 
+        x: Math.round(point.x / GRID_SIZE) * GRID_SIZE, 
+        y: Math.round(point.y / GRID_SIZE) * GRID_SIZE 
+      };
+      
       if (!isDrawing) {
         setIsDrawing(true);
-        setCurrentWirePoints([point]);
+        setCurrentWirePoints([snappedPoint]);
       } else {
         const lastPoint = currentWirePoints[currentWirePoints.length - 1];
-        if (point.x !== lastPoint.x || point.y !== lastPoint.y) {
-          setCurrentWirePoints([...currentWirePoints, point]);
+        if (snappedPoint.x !== lastPoint.x || snappedPoint.y !== lastPoint.y) {
+          setCurrentWirePoints([...currentWirePoints, snappedPoint]);
         }
       }
     } else if (activeTool === 'select') {
@@ -205,12 +246,14 @@ export default function App() {
     } else {
       createComponent(activeTool, point);
     }
-  }, [activeTool, isDrawing, currentWirePoints, createComponent, panOffset, circuitData.components, saveHistory]);
+  }, [activeTool, isDrawing, currentWirePoints, createComponent, panOffset, circuitData.components, saveHistory, findNearestTerminal]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent, point: Point) => {
-    // Actualizar punto del mouse en tiempo real (sin snap) para dibujar cable suavemente
+    // Actualizar punto del mouse en tiempo real
     if (isDrawing) {
-      setMousePoint(point);
+      // Try to snap to terminal for visual feedback
+      const snappedPoint = findNearestTerminal(point) || point;
+      setMousePoint(snappedPoint);
     }
     
     if (isPanning && dragStart) {
@@ -237,7 +280,7 @@ export default function App() {
       setSimulationData(null);
       setSimulationResults(new Map());
     }
-  }, [isPanning, dragStart, isDraggingComponent, selectedId, dragComponentOffset, isDrawing]);
+  }, [isPanning, dragStart, isDraggingComponent, selectedId, dragComponentOffset, isDrawing, findNearestTerminal]);
 
   const handleMouseUp = useCallback((_e: React.MouseEvent, _point: Point) => {
     if (isPanning) {
@@ -585,6 +628,10 @@ export default function App() {
         />
       )}
 
+      {showConcepts && (
+        <ConceptsModal onClose={() => setShowConcepts(false)} />
+      )}
+
       {/* Top Bar */}
       <header className="h-10 bg-gray-800 text-white flex items-center px-3 gap-3 shrink-0">
         <div className="flex items-center gap-2">
@@ -610,6 +657,9 @@ export default function App() {
         <div className="h-5 w-px bg-gray-600" />
         <button onClick={() => setZoom(1)} className="text-xs px-2 py-0.5 bg-gray-700 rounded hover:bg-gray-600">
           Reset Zoom
+        </button>
+        <button onClick={() => setShowConcepts(true)} className="text-xs px-2 py-0.5 bg-green-600 rounded hover:bg-green-500" title="Conceptos básicos">
+          📚 Conceptos
         </button>
         <button onClick={() => setShowWelcome(true)} className="text-xs px-2 py-0.5 bg-indigo-600 rounded hover:bg-indigo-500" title="Ayuda">
           ❓ Ayuda
