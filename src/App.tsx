@@ -114,6 +114,8 @@ export default function App() {
   const [dragStart, setDragStart] = useState<Point | null>(null);
   const [isDraggingComponent, setIsDraggingComponent] = useState(false);
   const [dragComponentOffset, setDragComponentOffset] = useState<Point>({ x: 0, y: 0 });
+  const [dragComponentId, setDragComponentId] = useState<string | null>(null);
+  const [dragOldTerminals, setDragOldTerminals] = useState<{ position: Point }[]>([]);
   const [history, setHistory] = useState<CircuitData[]>([]);
   const [circuitName, setCircuitName] = useState('Mi Circuito');
   const [statusMessage, setStatusMessage] = useState('');
@@ -169,7 +171,7 @@ export default function App() {
     showStatus(`+ ${type.replace(/_/g, ' ')} agregado`);
   }, [saveHistory]);
 
-  // Find nearest terminal within snap distance
+  // Find nearest terminal within snap distance - returns terminal info
   const findNearestTerminal = useCallback((point: Point, snapDistance = 15): Point | null => {
     let nearest: Point | null = null;
     let minDist = snapDistance;
@@ -202,6 +204,61 @@ export default function App() {
     return nearest;
   }, [circuitData]);
 
+  // Find terminal with component info for auto-routing
+  const findTerminalWithComponent = useCallback((point: Point, snapDistance = 15): { 
+    terminal: Point; 
+    component: CircuitComponent; 
+    terminalIndex: number;
+    distance: number;
+  } | null => {
+    let best: { terminal: Point; component: CircuitComponent; terminalIndex: number; distance: number } | null = null;
+
+    circuitData.components.forEach((comp: CircuitComponent) => {
+      comp.terminals.forEach((term: any, idx: number) => {
+        const dx = term.position.x - point.x;
+        const dy = term.position.y - point.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < snapDistance && (!best || dist < best.distance)) {
+          best = { 
+            terminal: { x: term.position.x, y: term.position.y }, 
+            component: comp, 
+            terminalIndex: idx,
+            distance: dist
+          };
+        }
+      });
+    });
+
+    return best;
+  }, [circuitData]);
+
+  // Update wires connected to a component when it moves/rotates
+  const updateConnectedWires = useCallback((
+    compId: string, 
+    oldTerminals: { position: Point }[], 
+    newTerminals: { position: Point }[]
+  ) => {
+    setCircuitData(prev => ({
+      ...prev,
+      wires: prev.wires.map((wire: Wire) => {
+        const newPoints = wire.points.map((pt: Point) => {
+          // Check if this point matches any old terminal position
+          for (let i = 0; i < oldTerminals.length; i++) {
+            const oldPos = oldTerminals[i].position;
+            const dx = Math.abs(pt.x - oldPos.x);
+            const dy = Math.abs(pt.y - oldPos.y);
+            if (dx < 2 && dy < 2) {
+              // Update to new terminal position
+              return { ...newTerminals[i].position };
+            }
+          }
+          return pt;
+        });
+        return { ...wire, points: newPoints };
+      })
+    }));
+  }, []);
+
   const handleMouseDown = useCallback((e: React.MouseEvent, point: Point) => {
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true);
@@ -222,7 +279,20 @@ export default function App() {
       } else {
         const lastPoint = currentWirePoints[currentWirePoints.length - 1];
         if (snappedPoint.x !== lastPoint.x || snappedPoint.y !== lastPoint.y) {
-          setCurrentWirePoints([...currentWirePoints, snappedPoint]);
+          const newPoints = [...currentWirePoints, snappedPoint];
+          
+          // Auto-routing: Check if we connected to a component terminal
+          const terminalInfo = findTerminalWithComponent(snappedPoint);
+          if (terminalInfo && terminalInfo.component.terminals.length === 2) {
+            // Get the OTHER terminal of this component
+            const otherTerminalIndex = terminalInfo.terminalIndex === 0 ? 1 : 0;
+            const otherTerminal = terminalInfo.component.terminals[otherTerminalIndex];
+            
+            // Add path through the component to the other terminal
+            newPoints.push({ x: otherTerminal.position.x, y: otherTerminal.position.y });
+          }
+          
+          setCurrentWirePoints(newPoints);
         }
       }
     } else if (activeTool === 'select') {
@@ -235,6 +305,8 @@ export default function App() {
       if (clickedComp) {
         setSelectedId(clickedComp.id);
         setIsDraggingComponent(true);
+        setDragComponentId(clickedComp.id);
+        setDragOldTerminals(clickedComp.terminals.map(t => ({ position: { ...t.position } })));
         setDragComponentOffset({
           x: point.x - clickedComp.position.x,
           y: point.y - clickedComp.position.y,
@@ -261,22 +333,49 @@ export default function App() {
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       });
-    } else if (isDraggingComponent && selectedId) {
+    } else if (isDraggingComponent && selectedId && dragComponentId) {
       const newPos = {
         x: point.x - dragComponentOffset.x,
         y: point.y - dragComponentOffset.y,
       };
-      setCircuitData(prev => ({
-        ...prev,
-        components: prev.components.map((c: CircuitComponent) => {
-          if (c.id !== selectedId) return c;
-          return {
-            ...c,
-            position: newPos,
-            terminals: getTerminals(c.type, newPos, c.rotation),
-          };
-        }),
-      }));
+      
+      // Get the component being dragged
+      const comp = circuitData.components.find((c: CircuitComponent) => c.id === dragComponentId);
+      if (comp) {
+        // Calculate new terminal positions
+        const newTerminals = getTerminals(comp.type, newPos, comp.rotation);
+        
+        // Update component position and terminals
+        setCircuitData(prev => ({
+          ...prev,
+          components: prev.components.map((c: CircuitComponent) => {
+            if (c.id !== dragComponentId) return c;
+            return {
+              ...c,
+              position: newPos,
+              terminals: newTerminals,
+            };
+          }),
+          // Update wires connected to this component
+          wires: prev.wires.map((wire: Wire) => {
+            const newPoints = wire.points.map((pt: Point) => {
+              // Check if this point matches any old terminal position
+              for (let i = 0; i < dragOldTerminals.length; i++) {
+                const oldPos = dragOldTerminals[i].position;
+                const dx = Math.abs(pt.x - oldPos.x);
+                const dy = Math.abs(pt.y - oldPos.y);
+                if (dx < 2 && dy < 2) {
+                  // Update to new terminal position
+                  return { ...newTerminals[i].position };
+                }
+              }
+              return pt;
+            });
+            return { ...wire, points: newPoints };
+          })
+        }));
+      }
+      
       setSimulationData(null);
       setSimulationResults(new Map());
     }
@@ -290,6 +389,8 @@ export default function App() {
     }
     if (isDraggingComponent) {
       setIsDraggingComponent(false);
+      setDragComponentId(null);
+      setDragOldTerminals([]);
     }
   }, [isPanning, isDraggingComponent]);
 
@@ -453,21 +554,47 @@ export default function App() {
 
   const handleRotateComponent = useCallback((id: string) => {
     saveHistory();
+    
+    // Get the component before rotation
+    const comp = circuitData.components.find((c: CircuitComponent) => c.id === id);
+    if (!comp) return;
+    
+    const oldTerminals = comp.terminals.map(t => ({ position: { ...t.position } }));
+    const newRotation = (comp.rotation + 90) % 360;
+    const newTerminals = getTerminals(comp.type, comp.position, newRotation);
+    
     setCircuitData(prev => ({
       ...prev,
       components: prev.components.map((c: CircuitComponent) => {
         if (c.id !== id) return c;
-        const newRotation = (c.rotation + 90) % 360;
         return {
           ...c,
           rotation: newRotation,
-          terminals: getTerminals(c.type, c.position, newRotation),
+          terminals: newTerminals,
         };
       }),
+      // Update wires connected to this component
+      wires: prev.wires.map((wire: Wire) => {
+        const newPoints = wire.points.map((pt: Point) => {
+          // Check if this point matches any old terminal position
+          for (let i = 0; i < oldTerminals.length; i++) {
+            const oldPos = oldTerminals[i].position;
+            const dx = Math.abs(pt.x - oldPos.x);
+            const dy = Math.abs(pt.y - oldPos.y);
+            if (dx < 2 && dy < 2) {
+              // Update to new terminal position
+              return { ...newTerminals[i].position };
+            }
+          }
+          return pt;
+        });
+        return { ...wire, points: newPoints };
+      })
     }));
+    
     setSimulationData(null);
     setSimulationResults(new Map());
-  }, [saveHistory]);
+  }, [saveHistory, circuitData.components]);
 
   const handleSimulate = useCallback(() => {
     setIsSimulating(true);
