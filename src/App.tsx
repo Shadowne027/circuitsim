@@ -656,24 +656,45 @@ export default function App() {
   const handleExportImage = useCallback(() => {
     const svgEl = svgRef.current?.querySelector('svg');
     if (!svgEl) return;
-    const svgData = new XMLSerializer().serializeToString(svgEl);
+    
+    // Clonar el SVG y agregar atributos necesarios para exportación
+    const svgClone = svgEl.cloneNode(true) as SVGElement;
+    const bbox = svgEl.getBoundingClientRect();
+    svgClone.setAttribute('width', String(bbox.width));
+    svgClone.setAttribute('height', String(bbox.height));
+    svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    
+    const svgData = new XMLSerializer().serializeToString(svgClone);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+    
     const canvas = document.createElement('canvas');
-    canvas.width = 1200;
-    canvas.height = 800;
+    canvas.width = bbox.width * 2; // 2x para mejor resolución
+    canvas.height = bbox.height * 2;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    
     const img = new Image();
     img.onload = () => {
-      ctx.fillStyle = 'white';
+      ctx.fillStyle = '#f8f9fa';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(2, 2); // Escalar para alta resolución
       ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      
       const link = document.createElement('a');
       link.download = `${circuitName}.png`;
       link.href = canvas.toDataURL('image/png');
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       showStatus('🖼️ Imagen exportada');
     };
-    img.src = 'image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      showStatus('❌ Error al exportar imagen');
+    };
+    img.src = url;
   }, [circuitName]);
 
   const handleClear = useCallback(() => {
