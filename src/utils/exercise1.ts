@@ -42,13 +42,13 @@ function t(comp: any, idx: number): { x: number; y: number } {
 // Cálculos: R_total=600Ω, Io=20mA, V1=2V, V2=4V, V3=6V
 
 export function getExercise1(): CircuitData {
-  // Layout rectangular SIMPLE - SIN GND
-  // Solo batería + 3 resistencias en serie formando un lazo cerrado
+  // Layout rectangular con valores correctos del ejercicio
+  // V=100V, R1=70Ω, R2=35Ω, R3=100Ω
   
-  const v1 = makeComponent('voltage_source', { x: 100, y: 200 }, 12, 'V', 'V1', 90); // Vertical
-  const r1 = makeComponent('resistor', { x: 200, y: 100 }, 100, 'Ω', 'R1'); // Horizontal
-  const r2 = makeComponent('resistor', { x: 260, y: 100 }, 200, 'Ω', 'R2'); // Horizontal
-  const r3 = makeComponent('resistor', { x: 320, y: 100 }, 300, 'Ω', 'R3'); // Horizontal
+  const v1 = makeComponent('voltage_source', { x: 100, y: 200 }, 100, 'V', 'V1', 90); // Vertical
+  const r1 = makeComponent('resistor', { x: 200, y: 100 }, 70, 'Ω', 'R1'); // Horizontal
+  const r2 = makeComponent('resistor', { x: 260, y: 100 }, 35, 'Ω', 'R2'); // Horizontal
+  const r3 = makeComponent('resistor', { x: 320, y: 100 }, 100, 'Ω', 'R3'); // Horizontal
 
   // V1 vertical (90°): t1=(100,170) arriba (+), t2=(100,230) abajo (-)
   // R1 horizontal en (200,100): t1=(170,100) izq, t2=(230,100) der
@@ -58,7 +58,7 @@ export function getExercise1(): CircuitData {
   return {
     version: '1.0.0',
     name: 'EJERCICIO 1: Leyes de Ohm',
-    description: 'V=12V, R1=100Ω, R2=200Ω, R3=300Ω. Io=20mA',
+    description: 'V=100V, R1=70Ω, R2=35Ω, R3=100Ω. Io=487.8mA',
     author: 'CircuitSim',
     date: new Date().toISOString(),
     components: [v1, r1, r2, r3],
