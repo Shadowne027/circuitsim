@@ -42,21 +42,23 @@ function t(comp: any, idx: number): { x: number; y: number } {
 // Cálculos: R_total=600Ω, Io=20mA, V1=2V, V2=4V, V3=6V
 
 export function getExercise1(): CircuitData {
-  // Layout rectangular con valores correctos del ejercicio
-  // V=100V, R1=70Ω, R2=35Ω, R3=100Ω
-  // Resistencias más separadas + GND
+  // Layout CUADRADO como en la imagen
+  // Lado izquierdo: V0 (vertical)
+  // Lado superior: R1 y R2 (horizontales, en serie)
+  // Lado derecho: R3 (vertical)
+  // Lado inferior: cable de conexión
   
-  const v1 = makeComponent('voltage_source', { x: 100, y: 200 }, 100, 'V', 'V1', 90); // Vertical
-  const r1 = makeComponent('resistor', { x: 220, y: 100 }, 70, 'Ω', 'R1'); // Horizontal
-  const r2 = makeComponent('resistor', { x: 340, y: 100 }, 35, 'Ω', 'R2'); // Horizontal - más separada
-  const r3 = makeComponent('resistor', { x: 460, y: 100 }, 100, 'Ω', 'R3'); // Horizontal - más separada
-  const g1 = makeComponent('ground', { x: 550, y: 320 }, 0, 'V', 'GND');
+  const v0 = makeComponent('voltage_source', { x: 150, y: 200 }, 100, 'V', 'V0', 90); // Vertical
+  const r1 = makeComponent('resistor', { x: 250, y: 100 }, 70, 'Ω', 'R1'); // Horizontal arriba
+  const r2 = makeComponent('resistor', { x: 370, y: 100 }, 35, 'Ω', 'R2'); // Horizontal arriba
+  const r3 = makeComponent('resistor', { x: 490, y: 200 }, 100, 'Ω', 'R3', 90); // Vertical derecha
+  const g1 = makeComponent('ground', { x: 490, y: 320 }, 0, 'V', 'GND');
 
-  // V1 vertical (90°): t1=(100,170) arriba (+), t2=(100,230) abajo (-)
-  // R1 horizontal en (220,100): t1=(190,100) izq, t2=(250,100) der
-  // R2 horizontal en (340,100): t1=(310,100) izq, t2=(370,100) der
-  // R3 horizontal en (460,100): t1=(430,100) izq, t2=(490,100) der
-  // GND en (550,320): t1=(550,300)
+  // V0 vertical (90°): t1=(150,170) arriba (+), t2=(150,230) abajo (-)
+  // R1 horizontal en (250,100): t1=(220,100) izq, t2=(280,100) der
+  // R2 horizontal en (370,100): t1=(340,100) izq, t2=(400,100) der
+  // R3 vertical en (490,200): t1=(490,170) arriba, t2=(490,230) abajo
+  // GND en (490,320): t1=(490,300)
 
   return {
     version: '1.0.0',
@@ -64,22 +66,22 @@ export function getExercise1(): CircuitData {
     description: 'V=100V, R1=70Ω, R2=35Ω, R3=100Ω. Io=487.8mA',
     author: 'CircuitSim',
     date: new Date().toISOString(),
-    components: [v1, r1, r2, r3, g1],
+    components: [v0, r1, r2, r3, g1],
     wires: [
-      // V1 t1 (100,170) -> subir -> esquina sup izq (100,100) -> R1 izq (190,100)
-      makeWire([t(v1, 0), { x: 100, y: 100 }, t(r1, 0)]),
+      // V0 t1 (150,170) -> esquina sup izq (150,100) -> R1 izq (220,100)
+      makeWire([t(v0, 0), { x: 150, y: 100 }, t(r1, 0)]),
       
-      // R1 der (250,100) -> R2 izq (310,100)
+      // R1 der (280,100) -> R2 izq (340,100)
       makeWire([t(r1, 1), t(r2, 0)]),
       
-      // R2 der (370,100) -> R3 izq (430,100)
-      makeWire([t(r2, 1), t(r3, 0)]),
+      // R2 der (400,100) -> esquina sup der (490,100) -> R3 arriba (490,170)
+      makeWire([t(r2, 1), { x: 490, y: 100 }, t(r3, 0)]),
       
-      // R3 der (490,100) -> esquina sup der (550,100) -> bajar -> GND (550,300)
-      makeWire([t(r3, 1), { x: 550, y: 100 }, { x: 550, y: 300 }, t(g1, 0)]),
+      // R3 abajo (490,230) -> GND (490,300)
+      makeWire([t(r3, 1), t(g1, 0)]),
       
-      // GND (550,300) -> esquina inf izq (100,300) -> V1 t2 (100,230)
-      makeWire([t(g1, 0), { x: 550, y: 300 }, { x: 100, y: 300 }, t(v1, 1)]),
+      // GND -> esquina inf izq (150,300) -> V0 t2 (150,230)
+      makeWire([t(g1, 0), { x: 490, y: 300 }, { x: 150, y: 300 }, t(v0, 1)]),
     ],
     nodes: [],
     gridSize: 20,
