@@ -42,20 +42,18 @@ function t(comp: any, idx: number): { x: number; y: number } {
 // Cálculos: R_total=600Ω, Io=20mA, V1=2V, V2=4V, V3=6V
 
 export function getExercise1(): CircuitData {
-  // Layout rectangular con terminales conectados exactamente
-  // V1 vertical en lado izquierdo, R1-R2-R3 horizontales arriba (conectados)
+  // Layout rectangular SIMPLE - SIN GND
+  // Solo batería + 3 resistencias en serie formando un lazo cerrado
   
   const v1 = makeComponent('voltage_source', { x: 100, y: 200 }, 12, 'V', 'V1', 90); // Vertical
   const r1 = makeComponent('resistor', { x: 200, y: 100 }, 100, 'Ω', 'R1'); // Horizontal
-  const r2 = makeComponent('resistor', { x: 260, y: 100 }, 200, 'Ω', 'R2'); // Horizontal - pegada a R1
-  const r3 = makeComponent('resistor', { x: 320, y: 100 }, 300, 'Ω', 'R3'); // Horizontal - pegada a R2
-  const g1 = makeComponent('ground', { x: 100, y: 320 }, 0, 'V', 'GND');
+  const r2 = makeComponent('resistor', { x: 260, y: 100 }, 200, 'Ω', 'R2'); // Horizontal
+  const r3 = makeComponent('resistor', { x: 320, y: 100 }, 300, 'Ω', 'R3'); // Horizontal
 
-  // V1 vertical (90°): t1=(100,170) arriba, t2=(100,230) abajo
+  // V1 vertical (90°): t1=(100,170) arriba (+), t2=(100,230) abajo (-)
   // R1 horizontal en (200,100): t1=(170,100) izq, t2=(230,100) der
   // R2 horizontal en (260,100): t1=(230,100) izq, t2=(290,100) der
   // R3 horizontal en (320,100): t1=(290,100) izq, t2=(350,100) der
-  // GND en (100,320): t1=(100,300)
 
   return {
     version: '1.0.0',
@@ -63,7 +61,7 @@ export function getExercise1(): CircuitData {
     description: 'V=12V, R1=100Ω, R2=200Ω, R3=300Ω. Io=20mA',
     author: 'CircuitSim',
     date: new Date().toISOString(),
-    components: [v1, r1, r2, r3, g1],
+    components: [v1, r1, r2, r3],
     wires: [
       // V1 t1 (100,170) -> subir -> esquina sup izq (100,100) -> R1 izq (170,100)
       makeWire([t(v1, 0), { x: 100, y: 100 }, t(r1, 0)]),
@@ -77,11 +75,8 @@ export function getExercise1(): CircuitData {
       // R3 der (350,100) -> esquina sup der (400,100) -> bajar -> esquina inf der (400,300)
       makeWire([t(r3, 1), { x: 400, y: 100 }, { x: 400, y: 300 }]),
       
-      // Esquina inf der (400,300) -> esquina inf izq (100,300) -> GND t1 (100,300)
-      makeWire([{ x: 400, y: 300 }, { x: 100, y: 300 }, t(g1, 0)]),
-      
-      // GND t1 (100,300) -> V1 t2 (100,230)
-      makeWire([t(g1, 0), t(v1, 1)]),
+      // Esquina inf der (400,300) -> esquina inf izq (100,300) -> V1 t2 (100,230)
+      makeWire([{ x: 400, y: 300 }, { x: 100, y: 300 }, t(v1, 1)]),
     ],
     nodes: [],
     gridSize: 20,
