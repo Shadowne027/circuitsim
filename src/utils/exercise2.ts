@@ -43,42 +43,33 @@ function t(comp: any, idx: number): { x: number; y: number } {
 // RAB = 20Ω
 
 export function getExercise2(): CircuitData {
-  // Layout tipo escalera con R6 vertical al final
-  // Línea superior: R1 - nodo1 - R3 - nodo2 - R5
-  // R2 vertical en nodo1, R4 vertical en nodo2
-  // R6 vertical al final (como R3 en ejercicio 1)
+  // Layout EXACTO como en el diagrama:
+  // Arriba: R1 y R3 en serie
+  // Izquierda: R2 vertical
+  // Centro-derecha: R4 arriba, R5 y R6 abajo en serie
+  // R4 en paralelo con (R5+R6)
   
   const vTest = makeComponent('voltage_source', { x: 100, y: 200 }, 1, 'V', 'Vtest', 90);
   
-  // R1 = 10Ω (primera en serie, horizontal)
-  const r1 = makeComponent('resistor', { x: 200, y: 100 }, 10, 'Ω', 'R1');
+  // R1 = 10Ω (arriba, horizontal)
+  const r1 = makeComponent('resistor', { x: 250, y: 100 }, 10, 'Ω', 'R1');
   
-  // R2 = 20Ω (vertical, en paralelo)
-  const r2 = makeComponent('resistor', { x: 300, y: 150 }, 20, 'Ω', 'R2', 90);
+  // R2 = 20Ω (izquierda, vertical)
+  const r2 = makeComponent('resistor', { x: 150, y: 200 }, 20, 'Ω', 'R2', 90);
   
-  // R3 = 10Ω (segunda en serie, horizontal)
-  const r3 = makeComponent('resistor', { x: 400, y: 100 }, 10, 'Ω', 'R3');
+  // R3 = 10Ω (arriba, horizontal, después de R1)
+  const r3 = makeComponent('resistor', { x: 450, y: 100 }, 10, 'Ω', 'R3');
   
-  // R4 = 20Ω (vertical, en paralelo)
-  const r4 = makeComponent('resistor', { x: 500, y: 150 }, 20, 'Ω', 'R4', 90);
+  // R4 = 20Ω (centro, horizontal arriba)
+  const r4 = makeComponent('resistor', { x: 550, y: 150 }, 20, 'Ω', 'R4');
   
-  // R5 = 10Ω (tercera en serie, horizontal)
-  const r5 = makeComponent('resistor', { x: 600, y: 100 }, 10, 'Ω', 'R5');
+  // R5 = 10Ω (centro, horizontal abajo)
+  const r5 = makeComponent('resistor', { x: 550, y: 250 }, 10, 'Ω', 'R5');
   
-  // R6 = 10Ω (vertical al final, como R3)
-  const r6 = makeComponent('resistor', { x: 700, y: 150 }, 10, 'Ω', 'R6', 90);
+  // R6 = 10Ω (centro, horizontal abajo, después de R5)
+  const r6 = makeComponent('resistor', { x: 670, y: 250 }, 10, 'Ω', 'R6');
   
-  const g1 = makeComponent('ground', { x: 700, y: 270 }, 0, 'V', 'GND');
-
-  // Terminales:
-  // Vtest: t1=(100,170), t2=(100,230)
-  // R1: t1=(170,100), t2=(230,100)
-  // R2: t1=(300,120), t2=(300,180) - vertical
-  // R3: t1=(370,100), t2=(430,100)
-  // R4: t1=(500,120), t2=(500,180) - vertical
-  // R5: t1=(570,100), t2=(630,100)
-  // R6: t1=(700,120), t2=(700,180) - vertical
-  // GND: t1=(700,250)
+  const g1 = makeComponent('ground', { x: 100, y: 320 }, 0, 'V', 'GND');
 
   return {
     version: '1.0.0',
@@ -88,35 +79,38 @@ export function getExercise2(): CircuitData {
     date: new Date().toISOString(),
     components: [vTest, r1, r2, r3, r4, r5, r6, g1],
     wires: [
-      // Vtest+ -> R1
-      makeWire([t(vTest, 0), { x: 100, y: 100 }, t(r1, 0)]),
+      // Vtest+ -> R1 izq
+      makeWire([t(vTest, 0), { x: 100, y: 100 }, { x: 220, y: 100 }, t(r1, 0)]),
       
-      // R1 -> nodo1 -> R2 arriba
-      makeWire([t(r1, 1), { x: 300, y: 100 }, { x: 300, y: 120 }, t(r2, 0)]),
+      // R1 der -> R3 izq
+      makeWire([t(r1, 1), { x: 280, y: 100 }, { x: 420, y: 100 }, t(r3, 0)]),
       
-      // nodo1 -> R3
-      makeWire([{ x: 300, y: 100 }, t(r3, 0)]),
+      // R3 der -> B (derecha)
+      makeWire([t(r3, 1), { x: 480, y: 100 }, { x: 750, y: 100 }, { x: 750, y: 200 }]),
       
-      // R3 -> nodo2 -> R4 arriba
-      makeWire([t(r3, 1), { x: 500, y: 100 }, { x: 500, y: 120 }, t(r4, 0)]),
+      // R2 vertical: arriba -> nodo entre R1 y R3
+      makeWire([{ x: 150, y: 170 }, { x: 150, y: 100 }, { x: 280, y: 100 }]),
       
-      // nodo2 -> R5
-      makeWire([{ x: 500, y: 100 }, t(r5, 0)]),
+      // R2 vertical: abajo -> línea inferior
+      makeWire([t(r2, 1), { x: 150, y: 230 }, { x: 150, y: 300 }, { x: 100, y: 300 }]),
       
-      // R5 -> esquina der -> R6 arriba
-      makeWire([t(r5, 1), { x: 700, y: 100 }, { x: 700, y: 120 }, t(r6, 0)]),
+      // R4 izq -> nodo superior derecho
+      makeWire([t(r4, 0), { x: 520, y: 150 }, { x: 520, y: 100 }, { x: 480, y: 100 }]),
       
-      // R6 abajo -> GND
-      makeWire([t(r6, 1), t(g1, 0)]),
+      // R4 der -> B
+      makeWire([t(r4, 1), { x: 580, y: 150 }, { x: 750, y: 150 }, { x: 750, y: 200 }]),
       
-      // Línea inferior: GND -> R2 abajo
-      makeWire([t(g1, 0), { x: 700, y: 250 }, { x: 300, y: 250 }, { x: 300, y: 180 }, t(r2, 1)]),
+      // R5 izq -> nodo inferior izquierdo
+      makeWire([t(r5, 0), { x: 520, y: 250 }, { x: 520, y: 300 }, { x: 150, y: 300 }]),
       
-      // Línea inferior -> R4 abajo
-      makeWire([{ x: 500, y: 250 }, { x: 500, y: 180 }, t(r4, 1)]),
+      // R5 der -> R6 izq
+      makeWire([t(r5, 1), t(r6, 0)]),
       
-      // Línea inferior -> Vtest-
-      makeWire([{ x: 300, y: 250 }, { x: 100, y: 250 }, { x: 100, y: 230 }, t(vTest, 1)]),
+      // R6 der -> B
+      makeWire([t(r6, 1), { x: 700, y: 250 }, { x: 750, y: 250 }, { x: 750, y: 200 }]),
+      
+      // GND -> Vtest-
+      makeWire([t(g1, 0), { x: 100, y: 300 }, t(vTest, 1)]),
     ],
     nodes: [],
     gridSize: 20,

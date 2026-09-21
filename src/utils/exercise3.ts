@@ -37,64 +37,61 @@ function t(comp: any, idx: number): { x: number; y: number } {
   return comp.terminals[idx].position;
 }
 
-// EJERCICIO 3 - Análisis de Ramas
-// I2 = 2A (fuente de corriente)
-// Rama derecha: 5Ω + 5Ω en serie = 10Ω
-// R1 = 10Ω en paralelo con rama derecha
-// Resistencia de 20Ω en serie con todo
-// V total = 100V (80V en 20Ω + 20V en paralelo)
+// EJERCICIO 3 - ANÁLISIS DE RAMAS
+// Layout EXACTO como en el diagrama:
+// Izquierda: A con 20Ω en serie
+// Centro: R1=10Ω arriba, R2=5Ω + R=5Ω abajo
+// I2=2A en la rama de R2+R
 
 export function getExercise3(): CircuitData {
+  // Resistencia de 20Ω a la entrada
+  const r20 = makeComponent('resistor', { x: 150, y: 200 }, 20, 'Ω', 'R20');
+  
+  // R1 = 10Ω (arriba, horizontal)
+  const r1 = makeComponent('resistor', { x: 350, y: 100 }, 10, 'Ω', 'R1');
+  
+  // R2 = 5Ω (abajo, horizontal)
+  const r2 = makeComponent('resistor', { x: 350, y: 250 }, 5, 'Ω', 'R2');
+  
+  // R = 5Ω (abajo, después de R2)
+  const r = makeComponent('resistor', { x: 470, y: 250 }, 5, 'Ω', 'R');
+  
   // Fuente de corriente I2 = 2A
-  const i2 = makeComponent('current_source', { x: 600, y: 100 }, 2, 'A', 'I2', 90);
+  const i2 = makeComponent('current_source', { x: 550, y: 250 }, 2, 'A', 'I2');
   
-  // Rama derecha: dos resistencias de 5Ω en serie
-  const r5a = makeComponent('resistor', { x: 600, y: 160 }, 5, 'Ω', 'R5a', 90);
-  const r5b = makeComponent('resistor', { x: 600, y: 220 }, 5, 'Ω', 'R5b', 90);
-  
-  // R1 = 10Ω en paralelo (izquierda)
-  const r1 = makeComponent('resistor', { x: 500, y: 190 }, 10, 'Ω', 'R1', 90);
-  
-  // Resistencia de 20Ω en serie (abajo)
-  const r20 = makeComponent('resistor', { x: 550, y: 300 }, 20, 'Ω', 'R20');
-  
-  // Fuente de voltaje para completar el circuito (100V total)
-  const vSource = makeComponent('voltage_source', { x: 400, y: 300 }, 100, 'V', 'V1');
-  
-  const g1 = makeComponent('ground', { x: 400, y: 380 }, 0, 'V', 'GND');
+  const g1 = makeComponent('ground', { x: 100, y: 320 }, 0, 'V', 'GND');
 
   return {
     version: '1.0.0',
     name: 'EJERCICIO 3: Análisis de Ramas',
-    description: 'I2=2A, R1=10Ω, R5a=5Ω, R5b=5Ω, R20=20Ω. Vtotal=100V',
+    description: 'I2=2A, R20=20Ω, R1=10Ω, R2=5Ω, R=5Ω',
     author: 'CircuitSim',
     date: new Date().toISOString(),
-    components: [i2, r5a, r5b, r1, r20, vSource, g1],
+    components: [r20, r1, r2, r, i2, g1],
     wires: [
-      // I2+ (arriba) -> R5a
-      makeWire([t(i2, 0), { x: 600, y: 70 }, { x: 600, y: 130 }]),
+      // A -> R20 izq
+      makeWire([{ x: 100, y: 200 }, t(r20, 0)]),
       
-      // R5a -> R5b en serie (rama derecha)
-      makeWire([t(r5a, 1), t(r5b, 0)]),
+      // R20 der -> nodo superior
+      makeWire([t(r20, 1), { x: 180, y: 200 }, { x: 180, y: 100 }, { x: 320, y: 100 }, t(r1, 0)]),
       
-      // R5b -> nodo inferior derecho
-      makeWire([t(r5b, 1), { x: 600, y: 250 }, { x: 600, y: 300 }]),
+      // R20 der -> nodo inferior
+      makeWire([{ x: 180, y: 200 }, { x: 180, y: 250 }, { x: 320, y: 250 }, t(r2, 0)]),
       
-      // R1 en paralelo (conecta arriba y abajo)
-      makeWire([t(r1, 0), { x: 500, y: 160 }, { x: 600, y: 160 }]),
-      makeWire([t(r1, 1), { x: 500, y: 220 }, { x: 600, y: 220 }]),
+      // R1 der -> B (derecha)
+      makeWire([t(r1, 1), { x: 380, y: 100 }, { x: 600, y: 100 }, { x: 600, y: 200 }]),
       
-      // Nodo inferior -> R20
-      makeWire([{ x: 600, y: 300 }, { x: 580, y: 300 }, t(r20, 1)]),
+      // R2 der -> R izq
+      makeWire([t(r2, 1), t(r, 0)]),
       
-      // R20 -> V1
-      makeWire([t(r20, 0), t(vSource, 1)]),
+      // R der -> I2 izq
+      makeWire([t(r, 1), t(i2, 0)]),
       
-      // V1+ -> I2- (completar circuito)
-      makeWire([t(vSource, 0), { x: 430, y: 300 }, { x: 430, y: 100 }, { x: 600, y: 100 }, t(i2, 1)]),
+      // I2 der -> B
+      makeWire([t(i2, 1), { x: 580, y: 250 }, { x: 600, y: 250 }, { x: 600, y: 200 }]),
       
-      // GND en V1-
-      makeWire([t(vSource, 1), { x: 400, y: 300 }, { x: 400, y: 360 }, t(g1, 0)]),
+      // GND
+      makeWire([{ x: 100, y: 200 }, { x: 100, y: 300 }, t(g1, 0)]),
     ],
     nodes: [],
     gridSize: 20,
