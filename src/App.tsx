@@ -301,18 +301,23 @@ export default function App() {
         if (snappedPoint.x !== lastPoint.x || snappedPoint.y !== lastPoint.y) {
           const newPoints = [...currentWirePoints, snappedPoint];
           
-          // Auto-routing: Check if we connected to a component terminal
+          // Check if we connected to a component terminal
           const terminalInfo = findTerminalWithComponent(snappedPoint);
-          if (terminalInfo && terminalInfo.component.terminals.length === 2) {
-            // Get the OTHER terminal of this component
-            const otherTerminalIndex = terminalInfo.terminalIndex === 0 ? 1 : 0;
-            const otherTerminal = terminalInfo.component.terminals[otherTerminalIndex];
+          if (terminalInfo) {
+            // Auto-routing: if component has 2 terminals, continue to the other side
+            if (terminalInfo.component.terminals.length === 2) {
+              const otherTerminalIndex = terminalInfo.terminalIndex === 0 ? 1 : 0;
+              const otherTerminal = terminalInfo.component.terminals[otherTerminalIndex];
+              newPoints.push({ x: otherTerminal.position.x, y: otherTerminal.position.y });
+            }
             
-            // Add path through the component to the other terminal
-            newPoints.push({ x: otherTerminal.position.x, y: otherTerminal.position.y });
+            // Auto-finish: if connected to a terminal, finish the wire automatically
+            setCurrentWirePoints(newPoints);
+            setTimeout(() => finishWire(), 0);
+          } else {
+            // Not connected to terminal yet, keep drawing
+            setCurrentWirePoints(newPoints);
           }
-          
-          setCurrentWirePoints(newPoints);
         }
       }
     } else if (activeTool === 'select') {
