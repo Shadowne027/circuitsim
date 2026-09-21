@@ -3,6 +3,9 @@ import { CircuitData } from '../types';
 import { getOhmLawExample, getSeriesCircuitExample, getLEDExample, getSwitchExample } from '../utils/examples';
 import { getSimpleSeriesExample } from '../utils/simpleExample';
 import { getExercise1 } from '../utils/exercise1';
+import { getExercise2 } from '../utils/exercise2';
+import { getExercise3 } from '../utils/exercise3';
+import { getExercise4 } from '../utils/exercise4';
 
 interface Props {
   onClose: () => void;
@@ -12,7 +15,10 @@ interface Props {
 
 export default function WelcomeModal({ onClose, onLoadExample, onLoadFile }: Props) {
   const examples = [
-    { name: 'EJERCICIO 1', desc: 'V=12V, R1=100Ω, R2=200Ω, R3=300Ω', data: getExercise1(), icon: '📚' },
+    { name: 'EJERCICIO 1', desc: 'Serie: V=100V, R1=70Ω, R2=35Ω, R3=100Ω', data: getExercise1(), icon: '📚' },
+    { name: 'EJERCICIO 2', desc: 'Resistencia equivalente: RAB=20Ω', data: getExercise2(), icon: '📚' },
+    { name: 'EJERCICIO 3', desc: 'Análisis de ramas: I2=2A, V=100V', data: getExercise3(), icon: '📚' },
+    { name: 'EJERCICIO 4', desc: 'Red mixta: 8 resistencias, V=24V', data: getExercise4(), icon: '📚' },
     { name: 'Ejercicio Simple', desc: 'V=10V, R1=100Ω, R2=200Ω', data: getSimpleSeriesExample(), icon: '📝' },
     { name: 'Ley de Ohm', desc: 'V=IR básico', data: getOhmLawExample(), icon: '⚡' },
     { name: 'Circuito Serie', desc: 'Resistencias en serie', data: getSeriesCircuitExample(), icon: '🔗' },
