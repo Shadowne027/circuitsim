@@ -9,7 +9,6 @@ interface Props {
   onSave: () => void;
   onLoad: () => void;
   onNew: () => void;
-  onExportImage: () => void;
   showValues: boolean;
   onToggleValues: () => void;
   showNodes: boolean;
@@ -87,7 +86,7 @@ const categories = [
 ];
 
 export default function Toolbar({ 
-  activeTool, onToolSelect, onSimulate, onClear, onSave, onLoad, onNew, onExportImage,
+  activeTool, onToolSelect, onSimulate, onClear, onSave, onLoad, onNew,
   showValues, onToggleValues, showNodes, onToggleNodes, isSimulating 
 }: Props) {
   return (
@@ -95,11 +94,10 @@ export default function Toolbar({
       {/* File operations */}
       <div className="p-2 border-b border-gray-200">
         <div className="text-[10px] font-bold text-gray-500 mb-1 px-1 uppercase tracking-wide">Archivo</div>
-        <div className="grid grid-cols-2 gap-1">
+        <div className="grid grid-cols-3 gap-1">
           <button onClick={onNew} className="text-[11px] px-2 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100" title="Nuevo">📄 Nuevo</button>
           <button onClick={onSave} className="text-[11px] px-2 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100" title="Guardar">💾 Guardar</button>
           <button onClick={onLoad} className="text-[11px] px-2 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100" title="Abrir">📂 Abrir</button>
-          <button onClick={onExportImage} className="text-[11px] px-2 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-100" title="Imagen">🖼️ PNG</button>
         </div>
       </div>
 

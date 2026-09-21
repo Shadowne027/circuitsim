@@ -1,12 +1,5 @@
 import React from 'react';
 import { CircuitData } from '../types';
-import { getOhmLawExample, getSeriesCircuitExample, getLEDExample, getSwitchExample } from '../utils/examples';
-import { getSimpleSeriesExample } from '../utils/simpleExample';
-import { getExercise1 } from '../utils/exercise1';
-import { getExercise2 } from '../utils/exercise2';
-import { getExercise3 } from '../utils/exercise3';
-import { getExercise4 } from '../utils/exercise4';
-import { getExercise5 } from '../utils/exercise5';
 
 interface Props {
   onClose: () => void;
@@ -15,19 +8,6 @@ interface Props {
 }
 
 export default function WelcomeModal({ onClose, onLoadExample, onLoadFile }: Props) {
-  const examples = [
-    { name: 'EJERCICIO 1', desc: 'Serie: V=100V, R1=70Ω, R2=35Ω, R3=100Ω', data: getExercise1(), icon: '📚' },
-    { name: 'EJERCICIO 2', desc: 'Resistencia equivalente: RAB=20Ω', data: getExercise2(), icon: '📚' },
-    { name: 'EJERCICIO 3', desc: 'Análisis de ramas: I2=2A, V=100V', data: getExercise3(), icon: '📚' },
-    { name: 'EJERCICIO 4', desc: 'Red mixta: 8 resistencias, V=24V', data: getExercise4(), icon: '📚' },
-    { name: 'EJERCICIO 5', desc: 'Compuertas lógicas: A=1, B=0', data: getExercise5(), icon: '📚' },
-    { name: 'Ejercicio Simple', desc: 'V=10V, R1=100Ω, R2=200Ω', data: getSimpleSeriesExample(), icon: '📝' },
-    { name: 'Ley de Ohm', desc: 'V=IR básico', data: getOhmLawExample(), icon: '⚡' },
-    { name: 'Circuito Serie', desc: 'Resistencias en serie', data: getSeriesCircuitExample(), icon: '🔗' },
-    { name: 'LED + Resistencia', desc: 'LED con limitador', data: getLEDExample(), icon: '💡' },
-    { name: 'Switch + Lámpara', desc: 'Control con interruptor', data: getSwitchExample(), icon: '🔌' },
-  ];
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -88,33 +68,13 @@ export default function WelcomeModal({ onClose, onLoadExample, onLoadFile }: Pro
             </ol>
           </div>
 
-          {/* Examples */}
-          <div>
-            <h2 className="text-lg font-bold text-gray-800 mb-2">📚 Ejemplos</h2>
-            <div className="grid grid-cols-1 gap-2">
-              {examples.map((ex, i) => (
-                <button
-                  key={i}
-                  onClick={() => { onLoadExample(ex.data); onClose(); }}
-                  className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-blue-50 hover:border-blue-200 border border-gray-200 transition-all text-left"
-                >
-                  <span className="text-2xl">{ex.icon}</span>
-                  <div>
-                    <div className="font-semibold text-sm text-gray-800">{ex.name}</div>
-                    <div className="text-xs text-gray-500">{ex.desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* File format */}
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
             <h3 className="text-sm font-bold text-amber-800 mb-1">💾 Formato de archivo</h3>
             <p className="text-xs text-amber-700">
               Los circuitos se guardan como archivos <code className="bg-amber-100 px-1 rounded">.circuit</code> (JSON). 
               Puedes guardar tu trabajo, enviarlo por email/chat, y quien lo reciba puede abrirlo directamente en esta página 
-              sin necesidad de cuenta. ¡Como un archivo Excel pero para circuitos!
+              sin necesidad de cuenta.
             </p>
           </div>
         </div>

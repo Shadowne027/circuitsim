@@ -906,7 +906,6 @@ export default function App() {
             onSave={handleSave}
             onLoad={handleLoad}
             onNew={handleNew}
-            onExportImage={handleExportImage}
             showValues={showValues}
             onToggleValues={() => setShowValues(!showValues)}
             showNodes={showNodes}
