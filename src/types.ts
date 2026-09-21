@@ -44,7 +44,16 @@ export type ComponentType =
   | 'ammeter'
   | 'ohmmeter'
   // Lamps
-  | 'lamp';
+  | 'lamp'
+  // Logic Gates
+  | 'logic_and'
+  | 'logic_or'
+  | 'logic_not'
+  | 'logic_nor'
+  | 'logic_nand'
+  | 'logic_xor'
+  | 'logic_input'
+  | 'logic_output';
 
 export interface Point {
   x: number;
@@ -159,4 +168,13 @@ export const COMPONENT_DEFAULTS: Record<ComponentType, { value: number; unit: st
   ohmmeter: { value: 0, unit: 'Ω', label: 'OM' },
   // Lamp
   lamp: { value: 100, unit: 'Ω', label: 'LP' },
+  // Logic Gates
+  logic_and: { value: 0, unit: '', label: 'AND' },
+  logic_or: { value: 0, unit: '', label: 'OR' },
+  logic_not: { value: 0, unit: '', label: 'NOT' },
+  logic_nor: { value: 0, unit: '', label: 'NOR' },
+  logic_nand: { value: 0, unit: '', label: 'NAND' },
+  logic_xor: { value: 0, unit: '', label: 'XOR' },
+  logic_input: { value: 0, unit: '', label: 'IN' },
+  logic_output: { value: 0, unit: '', label: 'OUT' },
 };

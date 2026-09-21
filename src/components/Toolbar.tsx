@@ -60,6 +60,15 @@ const tools: { id: Tool; label: string; icon: string; category: string }[] = [
   { id: 'ohmmeter', label: 'Ohmímetro', icon: 'Ω', category: 'probes' },
   // Lamp
   { id: 'lamp', label: 'Lámpara', icon: '⊛', category: 'lamps' },
+  // Logic Gates
+  { id: 'logic_input', label: 'Entrada', icon: '🔲', category: 'logic' },
+  { id: 'logic_output', label: 'Salida', icon: '🔵', category: 'logic' },
+  { id: 'logic_and', label: 'AND', icon: '&', category: 'logic' },
+  { id: 'logic_or', label: 'OR', icon: '≥1', category: 'logic' },
+  { id: 'logic_not', label: 'NOT', icon: '1', category: 'logic' },
+  { id: 'logic_nand', label: 'NAND', icon: '&̄', category: 'logic' },
+  { id: 'logic_nor', label: 'NOR', icon: '≥̄1', category: 'logic' },
+  { id: 'logic_xor', label: 'XOR', icon: '=1', category: 'logic' },
 ];
 
 const categories = [
@@ -74,6 +83,7 @@ const categories = [
   { id: 'transformers', label: 'Transformadores' },
   { id: 'probes', label: 'Instrumentos' },
   { id: 'lamps', label: 'Lámparas' },
+  { id: 'logic', label: 'Lógica Digital' },
 ];
 
 export default function Toolbar({ 

@@ -34,7 +34,7 @@ const FILL_LAMP = '#fef08a';
 
 function color(sel: boolean) { return sel ? STROKE_SEL : STROKE; }
 
-function renderComponent(comp: CircuitComponent, isSelected: boolean, showValues: boolean, sim?: { current: number; voltage: number }) {
+function renderComponent(comp: CircuitComponent, isSelected: boolean, showValues: boolean, sim?: { current: number; voltage: number }, simulationResults?: Map<string, { current: number; voltage: number }>) {
   const { type, rotation, position } = comp;
   const c = color(isSelected);
   const sw = 2;
@@ -267,6 +267,74 @@ function renderComponent(comp: CircuitComponent, isSelected: boolean, showValues
         <line x1="-8" y1="-8" x2="8" y2="8" stroke={c} strokeWidth={1.5}/>
         <line x1="8" y1="-8" x2="-8" y2="8" stroke={c} strokeWidth={1.5}/>
         <path d="M12,0 L30,0" fill="none" stroke={c} strokeWidth={sw}/>
+      </g>;
+      break;
+    case 'logic_and':
+      symbol = <g>
+        <path d="M-30,-10 L-15,-10 L-15,10 L-30,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M-15,-10 Q10,-10 10,0 Q10,10 -15,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M10,0 L30,0" fill="none" stroke={c} strokeWidth={sw}/>
+        <text x="-5" y="4" fontSize="8" fill={c} fontWeight="bold">AND</text>
+      </g>;
+      break;
+    case 'logic_or':
+      symbol = <g>
+        <path d="M-30,-10 Q-20,0 -30,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M-30,-10 Q0,-10 10,0 Q0,10 -30,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M10,0 L30,0" fill="none" stroke={c} strokeWidth={sw}/>
+        <text x="-5" y="4" fontSize="8" fill={c} fontWeight="bold">OR</text>
+      </g>;
+      break;
+    case 'logic_not':
+      symbol = <g>
+        <path d="M-30,-10 L-30,10 L10,0 Z" fill="none" stroke={c} strokeWidth={sw}/>
+        <circle cx="13" cy="0" r="3" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M16,0 L30,0" fill="none" stroke={c} strokeWidth={sw}/>
+        <text x="-10" y="4" fontSize="8" fill={c} fontWeight="bold">NOT</text>
+      </g>;
+      break;
+    case 'logic_nor':
+      symbol = <g>
+        <path d="M-30,-10 Q-20,0 -30,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M-30,-10 Q0,-10 10,0 Q0,10 -30,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <circle cx="13" cy="0" r="3" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M16,0 L30,0" fill="none" stroke={c} strokeWidth={sw}/>
+        <text x="-8" y="4" fontSize="7" fill={c} fontWeight="bold">NOR</text>
+      </g>;
+      break;
+    case 'logic_nand':
+      symbol = <g>
+        <path d="M-30,-10 L-15,-10 L-15,10 L-30,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M-15,-10 Q10,-10 10,0 Q10,10 -15,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <circle cx="13" cy="0" r="3" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M16,0 L30,0" fill="none" stroke={c} strokeWidth={sw}/>
+        <text x="-10" y="4" fontSize="6" fill={c} fontWeight="bold">NAND</text>
+      </g>;
+      break;
+    case 'logic_xor':
+      symbol = <g>
+        <path d="M-35,-10 Q-25,0 -35,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M-30,-10 Q-20,0 -30,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M-30,-10 Q0,-10 10,0 Q0,10 -30,10" fill="none" stroke={c} strokeWidth={sw}/>
+        <path d="M10,0 L30,0" fill="none" stroke={c} strokeWidth={sw}/>
+        <text x="-8" y="4" fontSize="7" fill={c} fontWeight="bold">XOR</text>
+      </g>;
+      break;
+    case 'logic_input':
+      const inputVal = comp.properties.value || 0;
+      symbol = <g>
+        <rect x="-15" y="-15" width="30" height="30" fill={inputVal ? '#22c55e' : '#ef4444'} stroke={c} strokeWidth={sw} rx="3"/>
+        <text x="0" y="5" fontSize="14" fill="white" textAnchor="middle" fontWeight="bold">{inputVal}</text>
+        <path d="M15,0 L30,0" fill="none" stroke={c} strokeWidth={sw}/>
+      </g>;
+      break;
+    case 'logic_output':
+      const outputVal = (comp as any)._simValue !== undefined ? (comp as any)._simValue : 
+                        (simulationResults?.get(comp.id)?.voltage === 5 ? 1 : 0);
+      symbol = <g>
+        <circle cx="0" cy="0" r="15" fill={outputVal ? '#22c55e' : '#6b7280'} stroke={c} strokeWidth={sw}/>
+        <text x="0" y="5" fontSize="12" fill="white" textAnchor="middle" fontWeight="bold">{outputVal}</text>
+        <path d="M-30,0 L-15,0" fill="none" stroke={c} strokeWidth={sw}/>
       </g>;
       break;
     case 'ground':
@@ -527,7 +595,7 @@ export default function CircuitCanvas({
             onMouseMove={(e) => onComponentHover(comp.id, e)}
             onMouseLeave={() => onComponentHover(null)}
             className="cursor-pointer">
-            {renderComponent(comp, selectedId === comp.id, showValues, simulationResults.get(comp.id))}
+            {renderComponent(comp, selectedId === comp.id, showValues, simulationResults.get(comp.id), simulationResults)}
           </g>
         ))}
         

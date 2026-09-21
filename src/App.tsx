@@ -4,6 +4,7 @@ import CircuitCanvas from './components/CircuitCanvas';
 import Toolbar from './components/Toolbar';
 import PropertiesPanel from './components/PropertiesPanel';
 import { simulateCircuit } from './utils/circuitSolver';
+import { simulateDigitalCircuit } from './utils/digitalSolver';
 import { downloadCircuit, uploadCircuit, createEmptyCircuit } from './utils/fileHandler';
 import WelcomeModal from './components/WelcomeModal';
 import ConceptsModal from './components/ConceptsModal';
@@ -455,6 +456,20 @@ export default function App() {
       setSimulationData(null);
       setSimulationResults(new Map());
       showStatus(comp.properties.closed ? '🔴 Abierto' : '🟢 Cerrado');
+    } else if (comp && comp.type === 'logic_input') {
+      // Toggle logic input value
+      saveHistory();
+      const newValue = (comp.properties.value || 0) === 0 ? 1 : 0;
+      setCircuitData(prev => ({
+        ...prev,
+        components: prev.components.map((c: CircuitComponent) => {
+          if (c.id !== id) return c;
+          return { ...c, properties: { ...c.properties, value: newValue } };
+        }),
+      }));
+      setSimulationData(null);
+      setSimulationResults(new Map());
+      showStatus(`${comp.label} = ${newValue}`);
     }
   }, [activeTool, circuitData.components, saveHistory]);
 
@@ -618,19 +633,66 @@ export default function App() {
   const handleSimulate = useCallback(() => {
     setIsSimulating(true);
     setTimeout(() => {
-      const result = simulateCircuit(circuitData);
-      setSimulationData(result);
+      // Detectar si hay componentes lógicos
+      const hasLogicComponents = circuitData.components.some(c => c.type.startsWith('logic_'));
       
-      if (result.success) {
-        const resultsMap = new Map<string, { current: number; voltage: number }>();
-        result.branchCurrents.forEach(bc => {
-          resultsMap.set(bc.componentId, { current: bc.current, voltage: bc.voltage });
-        });
-        setSimulationResults(resultsMap);
-        showStatus(`✅ Simulación exitosa | ${result.branchCurrents.length} ramas`);
+      if (hasLogicComponents) {
+        // Simulación digital
+        const result = simulateDigitalCircuit(circuitData);
+        
+        if (result.success) {
+          // Actualizar componentes con valores de simulación
+          if (result.updatedComponents) {
+            setCircuitData(prev => ({
+              ...prev,
+              components: result.updatedComponents!
+            }));
+          }
+          
+          // Convertir resultados digitales a formato de simulación
+          const resultsMap = new Map<string, { current: number; voltage: number }>();
+          result.results.forEach(r => {
+            // Para lógica digital: voltage = 5V si es 1, 0V si es 0
+            const voltage = r.value === 1 ? 5 : 0;
+            resultsMap.set(r.componentId, { current: 0, voltage });
+          });
+          setSimulationResults(resultsMap);
+          
+          // Crear datos de simulación compatibles
+          setSimulationData({
+            nodeVoltages: [],
+            branchCurrents: result.results.map(r => ({
+              componentId: r.componentId,
+              current: 0,
+              voltage: r.value === 1 ? 5 : 0,
+              power: 0
+            })),
+            totalPower: 0,
+            success: true
+          });
+          
+          showStatus(`✅ Simulación digital exitosa | ${result.results.length} compuertas`);
+        } else {
+          showStatus(`⚠️ ${result.error || 'Error en simulación digital'}`);
+          setSimulationResults(new Map());
+          setSimulationData(null);
+        }
       } else {
-        showStatus(`⚠️ ${result.error || 'Error en simulación'}`);
-        setSimulationResults(new Map());
+        // Simulación analógica
+        const result = simulateCircuit(circuitData);
+        setSimulationData(result);
+        
+        if (result.success) {
+          const resultsMap = new Map<string, { current: number; voltage: number }>();
+          result.branchCurrents.forEach(bc => {
+            resultsMap.set(bc.componentId, { current: bc.current, voltage: bc.voltage });
+          });
+          setSimulationResults(resultsMap);
+          showStatus(`✅ Simulación exitosa | ${result.branchCurrents.length} ramas`);
+        } else {
+          showStatus(`⚠️ ${result.error || 'Error en simulación'}`);
+          setSimulationResults(new Map());
+        }
       }
       setIsSimulating(false);
     }, 100);
