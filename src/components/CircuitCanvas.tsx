@@ -20,6 +20,8 @@ interface Props {
   isDrawing?: boolean;
   mousePoint?: Point | null;
   showNodes?: boolean;
+  isPanning?: boolean;
+  activeTool?: string;
 }
 
 function snapToGrid(point: Point): Point {
@@ -387,7 +389,7 @@ export default function CircuitCanvas({
   onMouseDown, onMouseMove, onMouseUp, onComponentClick, onWireClick,
   onComponentHover, onWireHover,
   panOffset, zoom, currentWirePoints = [], isDrawing = false, mousePoint = null,
-  showNodes = false
+  showNodes = false, isPanning = false, activeTool = 'select'
 }: Props) {
   const handleMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const svg = e.currentTarget;
@@ -480,8 +482,15 @@ export default function CircuitCanvas({
   const nodes = showNodes ? calculateNodes() : [];
   const nodeColors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
+  const getCursor = () => {
+    if (isPanning) return 'grabbing';
+    if (isDrawing) return 'crosshair';
+    if (activeTool === 'select') return 'grab';
+    return 'crosshair';
+  };
+  
   return (
-    <svg className="w-full h-full cursor-crosshair" style={{ background: '#f8f9fa' }}
+    <svg className="w-full h-full" style={{ background: '#f8f9fa', cursor: getCursor() }}
       onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp}
       onContextMenu={(e) => e.preventDefault()}>
       <defs>

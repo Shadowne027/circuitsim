@@ -261,10 +261,28 @@ export default function App() {
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent, point: Point) => {
+    // Pan con click medio, Alt+click, o click izquierdo en área vacía con herramienta select
     if (e.button === 1 || (e.button === 0 && e.altKey)) {
       setIsPanning(true);
       setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
       return;
+    }
+
+    // Con herramienta select, si NO hay componente debajo, iniciar pan
+    if (activeTool === 'select' && e.button === 0) {
+      const clickedComp = circuitData.components.find((comp: CircuitComponent) => {
+        const dx = Math.abs(comp.position.x - point.x);
+        const dy = Math.abs(comp.position.y - point.y);
+        return dx < 40 && dy < 30;
+      });
+      
+      if (!clickedComp) {
+        // Click en área vacía -> iniciar pan
+        setIsPanning(true);
+        setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+        setSelectedId(null);
+        return;
+      }
     }
 
     if (activeTool === 'wire') {
@@ -856,6 +874,8 @@ export default function App() {
             isDrawing={isDrawing}
             mousePoint={mousePoint}
             showNodes={showNodes}
+            isPanning={isPanning}
+            activeTool={activeTool}
           />
           
           {isDrawing && (
