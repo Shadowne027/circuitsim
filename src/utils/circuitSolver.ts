@@ -1,11 +1,11 @@
 import { CircuitData, SimulationData, BranchCurrent, SimulationResult, CircuitComponent } from '../types';
 
-const TOLERANCE = 15; // Aumentado de 5 a 15 para mejor detección de conexiones
+const TOLERANCE = 20; // Aumentado para mejor detección de conexiones
 
 function pointsMatch(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
   const dx = Math.abs(a.x - b.x);
   const dy = Math.abs(a.y - b.y);
-  return dx < TOLERANCE && dy < TOLERANCE;
+  return dx <= TOLERANCE && dy <= TOLERANCE;
 }
 
 export function simulateCircuit(data: CircuitData): SimulationData {
@@ -46,10 +46,24 @@ export function simulateCircuit(data: CircuitData): SimulationData {
       if (ra !== rb) parent.set(ra, rb);
     }
 
-    // Connect nearby points
+    // Connect nearby points (terminals to wire endpoints)
     for (let i = 0; i < allPoints.length; i++) {
       for (let j = i + 1; j < allPoints.length; j++) {
-        if (pointsMatch(allPoints[i], allPoints[j])) union(i, j);
+        const p1 = allPoints[i];
+        const p2 = allPoints[j];
+        
+        // Connect if points are close enough
+        if (pointsMatch(p1, p2)) {
+          union(i, j);
+        }
+        
+        // Also connect terminal to wire endpoint if they're at the same location
+        if (p1.compId && p2.wireId && pointsMatch(p1, p2)) {
+          union(i, j);
+        }
+        if (p2.compId && p1.wireId && pointsMatch(p1, p2)) {
+          union(i, j);
+        }
       }
     }
 
